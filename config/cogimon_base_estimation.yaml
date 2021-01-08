@@ -1,0 +1,56 @@
+XBotInterface:
+  urdf_path: $(rospack find cogimon_urdf)/urdf/cogimon.urdf
+  srdf_path: $(rospack find cogimon_srdf)/srdf/cogimon.srdf
+
+ModelInterface:
+  model_type: "RBDL"
+  is_model_floating_base: "true"
+
+
+## XBot2-related configuration
+
+# hal
+xbotcore_device_configs:
+  sim: $(rospack find cogimon_config)/hal/cogimon_sim.yaml
+  dummy: $(rospack find cogimon_config)/hal/cogimon_dummy.yaml
+
+
+# threads
+xbotcore_threads:
+    rt_main:  {sched: fifo , prio: 60, period: 0.001, core_id: 2}
+    nrt_main: {sched: other, prio: 0 , period: 0.005}
+
+
+# plugins
+xbotcore_plugins:
+
+    homing:
+        thread: rt_main
+        type: homing_example
+
+    ros_io: {thread: nrt_main, type: ros_io}
+
+    ros_control: {thread: nrt_main, type: ros_control}
+    
+    base_estimation: 
+        thread: rt_main 
+        type: base_estimation
+        params:
+            ik_problem: {type: yamlfile, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_base_estimation.stack}
+            world_frame_link: {type: string, value: l_sole}
+		
+
+
+# global parameters
+xbotcore_param:
+    /jm/tx_filter_autostart: {value: true, type: bool}
+    /jm/tx_filter_cutoff: {value: 2.0, type: double}
+    /jm/enable_safety: {value: false, type: bool}
+    /xbot_internal/ros_io/call_timeout: {value: 1.0, type: chrono}
+    /rt_main/memory_hooks: {value: true, type: bool}
+
+
+
+
+
+

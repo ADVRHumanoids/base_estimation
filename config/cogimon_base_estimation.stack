@@ -1,0 +1,70 @@
+solver_options:
+    regularization: 1e-3
+    back_end: "qpoases"
+    front_end: "ihqp"
+
+stack:
+     - ["LFUR", "LFUL", "LFLR", "LFLL", "RFUR", "RFUL", "RFLR", "RFLL"]
+
+constraints: ["Postural"]
+
+Postural:
+    type: "Postural"
+    lambda: 0.
+    disabled_joints:
+        - VIRTUALJOINT_1
+        - VIRTUALJOINT_2
+        - VIRTUALJOINT_3
+        - VIRTUALJOINT_4
+        - VIRTUALJOINT_5
+        - VIRTUALJOINT_6
+
+LFUR:
+    type: "Cartesian"
+    distal_link: "l_foot_upper_right_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+LFUL:
+    type: "Cartesian"
+    distal_link: "l_foot_upper_left_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+LFLR:
+    type: "Cartesian"
+    distal_link: "l_foot_lower_right_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+LFLL:
+    type: "Cartesian"
+    distal_link: "l_foot_lower_left_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+RFUR:
+    type: "Cartesian"
+    distal_link: "r_foot_upper_right_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+RFUL:
+    type: "Cartesian"
+    distal_link: "r_foot_upper_left_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+RFLR:
+    type: "Cartesian"
+    distal_link: "r_foot_lower_right_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+RFLL:
+    type: "Cartesian"
+    distal_link: "r_foot_lower_left_link"
+    lambda: 0.1
+    indices: [0,1,2]
+
+
