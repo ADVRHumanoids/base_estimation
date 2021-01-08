@@ -7,6 +7,7 @@
 #include <xbot2/ros/ros_support.h>
 #include <tf2_msgs/TFMessage.h>
 #include <cartesian_interface/problem/Postural.h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace XBot {
 
@@ -29,10 +30,12 @@ private:
     Cartesian::CartesianInterfaceImpl::Ptr _ci;
     Cartesian::PosturalTask::Ptr _postural;
 
-    void publishTf(const Eigen::Affine3d& T);
+    void publishToROS(const Eigen::Affine3d& T);
+    void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
 
     RosSupport::UniquePtr _ros;
-    PublisherPtr<tf2_msgs::TFMessage> _base_transform_pub;
+    PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
+    PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub;
 
 };
 

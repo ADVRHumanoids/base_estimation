@@ -2,7 +2,6 @@
 #include <tf2_eigen/tf2_eigen.h>
 
 
-
 using namespace XBot;
 
 bool BaseEstimation::on_initialize()
@@ -44,7 +43,8 @@ bool BaseEstimation::on_initialize()
 
     ros::NodeHandle nh(getName());
     _ros = std::make_unique<RosSupport>(nh);
-    _base_transform_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
+    _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
+    _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
 
     return true;
 }
@@ -87,10 +87,10 @@ void BaseEstimation::run()
     _model->getFloatingBasePose(world_T_base);
 
     /* Base Pose broadcast */
-    publishTf(world_T_base);
+    publishToROS(world_T_base);
 }
 
-void BaseEstimation::publishTf(const Eigen::Affine3d& T)
+void BaseEstimation::publishToROS(const Eigen::Affine3d& T)
 {
     tf2_msgs::TFMessage msg;
 
@@ -108,7 +108,25 @@ void BaseEstimation::publishTf(const Eigen::Affine3d& T)
 
     msg.transforms.push_back(Tmsg);
 
-    _base_transform_pub->publish(msg);
+    _base_tf_pub->publish(msg);
+    geometry_msgs::PoseStamped Pmsg;
+    convert(Tmsg, Pmsg);
+    _base_pose_pub->publish(Pmsg);
+}
+
+void BaseEstimation::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
+{
+    P.pose.position.x = T.transform.translation.x;
+    P.pose.position.y = T.transform.translation.y;
+    P.pose.position.z = T.transform.translation.z;
+
+    P.pose.orientation.w = T.transform.rotation.w;
+    P.pose.orientation.x = T.transform.rotation.x;
+    P.pose.orientation.y = T.transform.rotation.y;
+    P.pose.orientation.z = T.transform.rotation.z;
+
+    P.header.frame_id = T.header.frame_id;
+    P.header.stamp = T.header.stamp;
 }
 
 XBOT2_REGISTER_PLUGIN(BaseEstimation, base_estimation);
