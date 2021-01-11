@@ -1,8 +1,56 @@
 #include "base_estimation.h"
 #include <tf2_eigen/tf2_eigen.h>
+#include <OpenSoT/solvers/BackEndFactory.h>
 
 
 using namespace XBot;
+
+
+ContactForceOptimization::ContactForceOptimization(const std::string& sensor_frame,
+                                                   const std::vector<std::string>& corner_frames,
+                                                   ModelInterface::ConstPtr model):
+    _model(model)
+{
+    _solver = OpenSoT::solvers::BackEndFactory(OpenSoT::solvers::solver_back_ends::qpOASES, 4, 0,
+                                               OpenSoT::HessianType::HST_POSDEF, 1e6);
+
+    _A.setOnes(3,4);
+
+    Eigen::Affine3d T;
+    int col = 0;
+    for(auto frame : corner_frames)
+    {
+        _model->getPose(frame, sensor_frame, T);
+        _A(1,col) = T.translation()[0];
+        _A(2,col) = T.translation()[1];
+        col += 1;
+    }
+
+    _H = _A.transpose()*_A;
+
+    _b.setZero(3);
+
+    _lb.setZero(3); _ub.setZero(3);
+    _ub<<1e6, 1e6, 1e6, 1e6;
+
+    _g.setZero(4);
+
+    _solver->initProblem(_H, _g, Eigen::MatrixXd(0,0), Eigen::VectorXd(0), Eigen::VectorXd(0), _lb, _ub);
+}
+
+const Eigen::VectorXd& ContactForceOptimization::compute(const double Fz, const double Mx, const double My)
+{
+    _b[0] = Fz;
+    _b[1] = -My;
+    _b[2] = Mx;
+
+    _g = -_A.transpose()*_b;
+
+    _solver->updateTask(_H, _g);
+    _solver->solve();
+
+    return _solver->getSolution();
+}
 
 bool BaseEstimation::on_initialize()
 {
@@ -64,7 +112,6 @@ bool BaseEstimation::on_initialize()
     _ros = std::make_unique<RosSupport>(nh);
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
-
 
 
     return true;

@@ -8,8 +8,31 @@
 #include <tf2_msgs/TFMessage.h>
 #include <cartesian_interface/problem/Postural.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <OpenSoT/solvers/BackEnd.h>
 
 namespace XBot {
+class ContactForceOptimization
+{
+public:
+    ContactForceOptimization(const std::string& sensor_frame,
+                             const std::vector<std::string>& corner_frames,
+                             ModelInterface::ConstPtr model);
+
+    const Eigen::VectorXd& compute(const double Fz, const double Mx, const double My);
+
+private:
+    OpenSoT::solvers::BackEnd::Ptr _solver;
+    ModelInterface::ConstPtr _model;
+
+    Eigen::MatrixXd _H;
+    Eigen::MatrixXd _A;
+    Eigen::VectorXd _b;
+
+    Eigen::VectorXd _g;
+
+    Eigen::VectorXd _lb;
+    Eigen::VectorXd _ub;
+};
 
 class BaseEstimation : public ControlPlugin
 {
@@ -42,6 +65,8 @@ private:
     XBot::ImuSensor::ConstPtr _imu;
     Eigen::Matrix3d _w_R_imu;
     Eigen::Vector3d _v_imu;
+
+
 
 };
 
