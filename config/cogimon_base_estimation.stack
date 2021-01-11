@@ -4,7 +4,7 @@ solver_options:
     front_end: "ihqp"
 
 stack:
-     - ["LFUR", "LFUL", "LFLR", "LFLL", "RFUR", "RFUL", "RFLR", "RFLL"]
+     - ["LFUR", "LFUL", "LFLR", "LFLL", "RFUR", "RFUL", "RFLR", "RFLL", "IMU"]
 
 constraints: ["Postural"]
 
@@ -18,6 +18,13 @@ Postural:
         - VIRTUALJOINT_4
         - VIRTUALJOINT_5
         - VIRTUALJOINT_6
+
+IMU:
+    type: "Cartesian"
+    distal_link: "imu_link"
+    lambda: 0.1
+    indices: [3,4,5]
+    weight: 100
 
 LFUR:
     type: "Cartesian"

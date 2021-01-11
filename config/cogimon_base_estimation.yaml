@@ -38,6 +38,7 @@ xbotcore_plugins:
         params:
             ik_problem: {type: yamlfile, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_base_estimation.stack}
             world_frame_link: {type: string, value: l_sole}
+            use_imu: {type: bool, value: true}
 		
 
 

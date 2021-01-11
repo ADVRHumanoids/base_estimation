@@ -15,6 +15,20 @@ bool BaseEstimation::on_initialize()
     _model->setJointPosition(q_home);
     _model->update();
 
+
+    _use_imu = getParamOr<bool>("~use_imu", false);
+    if(_use_imu)
+    {
+        if(!_robot->getImu().empty())
+        {
+            _imu = _robot->getImu().begin()->second;
+        }
+        else
+        {
+            throw std::runtime_error("No IMU on robot!");
+        }
+    }
+
     auto ci_params = std::make_shared<Cartesian::Parameters>(getPeriodSec());
     ci_params->setLogEnabled(getParamOr("~enable_log", false));
     auto ci_ctx = std::make_shared<Cartesian::Context>(ci_params, _model);
@@ -41,17 +55,29 @@ bool BaseEstimation::on_initialize()
 
     _postural = std::dynamic_pointer_cast<Cartesian::PosturalTask>(_ci->getTask("Postural"));
 
+    if(_imu)
+    {
+        _imu_task = std::dynamic_pointer_cast<Cartesian::CartesianTask>(_ci->getTask("imu_link"));
+    }
+
     ros::NodeHandle nh(getName());
     _ros = std::make_unique<RosSupport>(nh);
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
+
+
 
     return true;
 }
 
 void BaseEstimation::on_start()
 {
-
+    if(_imu)
+    {
+        _model->setFloatingBaseState(_imu);
+        _model->update();
+        _ci->reset(0.);
+    }
 }
 
 void BaseEstimation::on_stop()
@@ -65,6 +91,25 @@ void BaseEstimation::run()
     _robot->sense(false);
     _model->syncFrom(*_robot);
     _model->getJointVelocity(_qdot);
+
+    /* IMU */
+    if(_imu)
+    {
+        Eigen::Matrix3d nwu_R_imu;
+        _imu->getOrientation(nwu_R_imu);
+        _w_R_imu = nwu_R_imu;
+
+        Eigen::Vector3d tmp_vel;
+        _imu->getAngularVelocity(tmp_vel);
+        _v_imu = _w_R_imu*tmp_vel;
+
+        Eigen::Affine3d imu_ref;
+        imu_ref.translation().setZero();
+        imu_ref.linear() = _w_R_imu;
+        _imu_task->setPoseReference(imu_ref);
+        Eigen::Vector6d imu_vel_ref; imu_vel_ref<<0.,0.,0.,_v_imu;
+        _imu_task->setVelocityReference(imu_vel_ref);
+    }
 
     /* Set joint velocities to postural task */
     _postural->setReferenceVelocity(_qdot);

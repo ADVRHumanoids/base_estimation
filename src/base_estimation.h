@@ -29,6 +29,7 @@ private:
     ModelInterface::Ptr _model;
     Cartesian::CartesianInterfaceImpl::Ptr _ci;
     Cartesian::PosturalTask::Ptr _postural;
+    Cartesian::CartesianTask::Ptr _imu_task;
 
     void publishToROS(const Eigen::Affine3d& T);
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
@@ -36,6 +37,11 @@ private:
     RosSupport::UniquePtr _ros;
     PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
     PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub;
+
+    bool _use_imu;
+    XBot::ImuSensor::ConstPtr _imu;
+    Eigen::Matrix3d _w_R_imu;
+    Eigen::Vector3d _v_imu;
 
 };
 
