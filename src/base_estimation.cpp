@@ -111,15 +111,19 @@ bool BaseEstimation::on_initialize()
         throw std::runtime_error("feet_prefix size is different from ft_frames size!");
     }
 
+
+
     jinfo("Feet Prefixes: [{}]\n", fmt::join(feet_prefix, ", "));
     for(auto foot_prefix : feet_prefix)
     {
         _map_foot_cartesian_tasks[foot_prefix] = footFrames(foot_prefix);
     }
 
-    unsigned int i = 0;
-    for(auto foot_prefix : feet_prefix)
+
+    for(int i = 0; i < feet_prefix.size(); i++)
     {
+        std::string foot_prefix = feet_prefix[i];
+
         std::vector<Cartesian::CartesianTask::Ptr> tasks = _map_foot_cartesian_tasks.at(foot_prefix);
         std::vector<std::string> task_frames;
         for(auto task : tasks)
@@ -130,8 +134,15 @@ bool BaseEstimation::on_initialize()
         _map_foot_contact_forces[foot_prefix] = std::make_shared<ContactForceOptimization>(ft_frames[i],
                                                                                            task_frames,
                                                                                            _model);
+    }
 
-        i += 1;
+
+    for(int i = 0; i < ft_frames.size(); i++)
+    {
+        std::string ft_name = ft_frames[i];
+
+        auto ft = _robot->getForceTorque().at(ft_name);
+        _ft_map[feet_prefix[i]] = ft;
     }
 
 
@@ -166,7 +177,7 @@ std::vector<Cartesian::CartesianTask::Ptr> BaseEstimation::footFrames(const std:
         }
 
         if(t.length() >= foot_prefix.length() &&
-           t.substr(0,foot_prefix.length()) == foot_prefix)
+                t.substr(0,foot_prefix.length()) == foot_prefix)
         {
             feet_tasks.push_back(cart);
         }
@@ -214,6 +225,26 @@ void BaseEstimation::run()
         _imu_task->setPoseReference(imu_ref);
         Eigen::Vector6d imu_vel_ref; imu_vel_ref<<0.,0.,0.,_v_imu;
         _imu_task->setVelocityReference(imu_vel_ref);
+    }
+
+    /* FT */
+    for(auto item : _ft_map)
+    {
+        auto ft = item.second;
+        auto cf = _map_foot_contact_forces.at(item.first);
+
+        Eigen::Vector6d wrench;
+        ft->getWrench(wrench);
+
+        const auto& sol = cf->compute(wrench[2], wrench[3], wrench[4]);
+
+        for(int i = 0; i < sol.size(); i++)
+        {
+            jprint(fmt::fg(fmt::terminal_color::blue),
+                   "{}: {} \n",
+                   cf->getCornerFrames()[i], sol[i]);
+        }
+
     }
 
     /* Set joint velocities to postural task */

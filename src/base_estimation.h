@@ -67,10 +67,11 @@ private:
     PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub;
 
     bool _use_imu;
-    XBot::ImuSensor::ConstPtr _imu;
+    ImuSensor::ConstPtr _imu;
     Eigen::Matrix3d _w_R_imu;
     Eigen::Vector3d _v_imu;
 
+    std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
     std::map<std::string, std::vector<Cartesian::CartesianTask::Ptr>> _map_foot_cartesian_tasks;
     std::map<std::string, ContactForceOptimization::Ptr> _map_foot_contact_forces;
 
