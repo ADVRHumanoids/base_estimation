@@ -9,12 +9,13 @@ using namespace XBot;
 ContactForceOptimization::ContactForceOptimization(const std::string& sensor_frame,
                                                    const std::vector<std::string>& corner_frames,
                                                    ModelInterface::ConstPtr model):
+    _corner_frames(corner_frames),
     _model(model)
 {
-    _solver = OpenSoT::solvers::BackEndFactory(OpenSoT::solvers::solver_back_ends::qpOASES, 4, 0,
+    _solver = OpenSoT::solvers::BackEndFactory(OpenSoT::solvers::solver_back_ends::qpOASES, corner_frames.size(), 0,
                                                OpenSoT::HessianType::HST_POSDEF, 1e6);
 
-    _A.setOnes(3,4);
+    _A.setOnes(3,corner_frames.size());
 
     Eigen::Affine3d T;
     int col = 0;
@@ -30,10 +31,10 @@ ContactForceOptimization::ContactForceOptimization(const std::string& sensor_fra
 
     _b.setZero(3);
 
-    _lb.setZero(3); _ub.setZero(3);
-    _ub<<1e6, 1e6, 1e6, 1e6;
+    _lb.setZero(corner_frames.size()); _ub.setZero(corner_frames.size());
+    _ub = 1e6*Eigen::VectorXd::Ones(corner_frames.size());
 
-    _g.setZero(4);
+    _g.setZero(corner_frames.size());
 
     _solver->initProblem(_H, _g, Eigen::MatrixXd(0,0), Eigen::VectorXd(0), Eigen::VectorXd(0), _lb, _ub);
 }
@@ -54,6 +55,7 @@ const Eigen::VectorXd& ContactForceOptimization::compute(const double Fz, const 
 
 bool BaseEstimation::on_initialize()
 {
+    setJournalLevel(Journal::Level::Low);
     setAutostart(true);
 
     _model = ModelInterface::getModel(_robot->getConfigOptions());
@@ -101,6 +103,40 @@ bool BaseEstimation::on_initialize()
 
     _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot", ik_problem, ci_ctx);
 
+
+    std::vector<std::string> feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
+    std::vector<std::string> ft_frames = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
+    if(feet_prefix.size() != ft_frames.size())
+    {
+        throw std::runtime_error("feet_prefix size is different from ft_frames size!");
+    }
+
+    jinfo("Feet Prefixes: [{}]\n", fmt::join(feet_prefix, ", "));
+    for(auto foot_prefix : feet_prefix)
+    {
+        _map_foot_cartesian_tasks[foot_prefix] = footFrames(foot_prefix);
+    }
+
+    unsigned int i = 0;
+    for(auto foot_prefix : feet_prefix)
+    {
+        std::vector<Cartesian::CartesianTask::Ptr> tasks = _map_foot_cartesian_tasks.at(foot_prefix);
+        std::vector<std::string> task_frames;
+        for(auto task : tasks)
+        {
+            task_frames.push_back(task->getDistalLink());
+        }
+        jinfo("Frames [{}] for foot {}\n", fmt::join(task_frames, ", "), foot_prefix);
+        _map_foot_contact_forces[foot_prefix] = std::make_shared<ContactForceOptimization>(ft_frames[i],
+                                                                                           task_frames,
+                                                                                           _model);
+
+        i += 1;
+    }
+
+
+
+
     _postural = std::dynamic_pointer_cast<Cartesian::PosturalTask>(_ci->getTask("Postural"));
 
     if(_imu)
@@ -115,6 +151,28 @@ bool BaseEstimation::on_initialize()
 
 
     return true;
+}
+
+std::vector<Cartesian::CartesianTask::Ptr> BaseEstimation::footFrames(const std::string& foot_prefix)
+{
+    std::vector<Cartesian::CartesianTask::Ptr> feet_tasks;
+    for(auto t : _ci->getTaskList())
+    {
+        auto cart = std::dynamic_pointer_cast<Cartesian::CartesianTask>(_ci->getTask(t));
+
+        if(!cart)
+        {
+            continue;
+        }
+
+        if(t.length() >= foot_prefix.length() &&
+           t.substr(0,foot_prefix.length()) == foot_prefix)
+        {
+            feet_tasks.push_back(cart);
+        }
+    }
+
+    return feet_tasks;
 }
 
 void BaseEstimation::on_start()

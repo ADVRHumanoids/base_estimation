@@ -14,15 +14,19 @@ namespace XBot {
 class ContactForceOptimization
 {
 public:
+    typedef std::shared_ptr<ContactForceOptimization> Ptr;
+
     ContactForceOptimization(const std::string& sensor_frame,
                              const std::vector<std::string>& corner_frames,
                              ModelInterface::ConstPtr model);
 
     const Eigen::VectorXd& compute(const double Fz, const double Mx, const double My);
+    const std::vector<std::string>& getCornerFrames(){ return _corner_frames;}
 
 private:
     OpenSoT::solvers::BackEnd::Ptr _solver;
     ModelInterface::ConstPtr _model;
+    std::vector<std::string> _corner_frames;
 
     Eigen::MatrixXd _H;
     Eigen::MatrixXd _A;
@@ -56,6 +60,7 @@ private:
 
     void publishToROS(const Eigen::Affine3d& T);
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
+    std::vector<Cartesian::CartesianTask::Ptr> footFrames(const std::string& foot_prefix);
 
     RosSupport::UniquePtr _ros;
     PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
@@ -66,7 +71,8 @@ private:
     Eigen::Matrix3d _w_R_imu;
     Eigen::Vector3d _v_imu;
 
-
+    std::map<std::string, std::vector<Cartesian::CartesianTask::Ptr>> _map_foot_cartesian_tasks;
+    std::map<std::string, ContactForceOptimization::Ptr> _map_foot_contact_forces;
 
 };
 
