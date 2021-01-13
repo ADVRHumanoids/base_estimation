@@ -16,11 +16,9 @@ bool BaseEstimationPlugin::on_initialize()
     // create model
     _model = ModelInterface::getModel(_robot->getConfigOptions());
 
-    // set model to home
-    Eigen::VectorXd q_home;
-    _model->getRobotState("home", q_home);
-    _model->setJointPosition(q_home);
-    _model->update();
+    // set model to the robot state
+    _robot->sense(false);
+    _model->syncFrom(*_robot);
 
     // load problem
     auto ik_problem_yaml = getParamOrThrow<YAML::Node>("~ik_problem/content");
@@ -98,6 +96,44 @@ bool BaseEstimationPlugin::on_initialize()
     return true;
 }
 
+void BaseEstimationPlugin::on_start()
+{
+    _robot->sense(false);
+    _model->syncFrom(*_robot);
+
+    if(_est->usesImu())
+    {
+        jinfo("resetting model from imu");
+        _model->setFloatingBaseState(_imu);
+        _model->update();
+    }
+
+    _est->reset();
+}
+
+void BaseEstimationPlugin::run()
+{
+    /* Update robot */
+    _robot->sense(false);
+    _model->syncFrom(*_robot);
+
+    /* Update estimate */
+    Eigen::Affine3d base_pose;
+    Eigen::Vector6d base_vel;
+    if(!_est->update(base_pose, base_vel))
+    {
+        jerror("unable to solve");
+    }
+
+    /* Base Pose broadcast */
+    publishToROS(base_pose);
+}
+
+void BaseEstimationPlugin::on_stop()
+{
+
+}
+
 std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foot_prefix)
 {
     std::vector<std::string> feet_tasks;
@@ -119,44 +155,6 @@ std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foo
     }
 
     return feet_tasks;
-}
-
-void BaseEstimationPlugin::on_start()
-{
-    _robot->sense(false);
-    _model->syncFrom(*_robot);
-
-    if(_est->usesImu())
-    {
-        jinfo("resetting model from imu");
-        _model->setFloatingBaseState(_imu);
-        _model->update();
-    }
-
-    _est->reset();
-}
-
-void BaseEstimationPlugin::on_stop()
-{
-
-}
-
-void BaseEstimationPlugin::run()
-{
-    /* Update robot */
-    _robot->sense(false);
-    _model->syncFrom(*_robot);
-
-    /* Update estimate */
-    Eigen::Affine3d base_pose;
-    Eigen::Vector6d base_vel;
-    if(!_est->update(base_pose, base_vel))
-    {
-        jerror("unable to solve");
-    }
-
-    /* Base Pose broadcast */
-    publishToROS(base_pose);
 }
 
 void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T)
