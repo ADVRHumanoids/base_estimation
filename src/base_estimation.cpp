@@ -41,6 +41,7 @@ void BaseEstimation::addImu(ImuSensor::ConstPtr imu)
 {
     _imu = imu;
     _imu_task = task_as<Cartesian::CartesianTask>(_ci->getTask(imu->getSensorName()));
+    _imu_task->setActivationState(Cartesian::ActivationState::Enabled);
 
     // tbd: error check
 }
@@ -113,8 +114,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
         _weights = cf.compute(wrench);
         _weights /= _alpha;
 
-
-        for(unsigned int i = 0; i < item.vertex_tasks.size(); ++i)
+        for(size_t i = 0; i < item.vertex_tasks.size(); ++i)
         {
             int size = item.vertex_tasks[i]->getSize();
             item.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));

@@ -25,6 +25,7 @@ IMU:
     lambda: 0.1
     indices: [3,4,5]
     weight: 100
+    active: false
 
 LFUR:
     type: "Cartesian"

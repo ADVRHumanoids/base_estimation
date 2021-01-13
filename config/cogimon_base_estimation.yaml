@@ -39,6 +39,7 @@ xbotcore_plugins:
             ik_problem: {type: yamlfile, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_base_estimation.stack}
             world_frame_link: {type: string, value: l_sole}
             use_imu: {type: bool, value: true}
+            enable_log: {type: bool, value: false}
             feet_prefix: {type: vector<string>, value: [l_foot, r_foot]}
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
 		

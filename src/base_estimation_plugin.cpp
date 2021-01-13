@@ -25,8 +25,12 @@ bool BaseEstimationPlugin::on_initialize()
     // load problem
     auto ik_problem_yaml = getParamOrThrow<YAML::Node>("~ik_problem/content");
 
+    // estimator options
+    ikbe::BaseEstimation::Options est_opt;
+    est_opt.log_enabled = getParamOr("~enable_log", false);
+
     // create estimator
-    _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml);
+    _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);
 
     // use imu
     if(getParamOr<bool>("~use_imu", false))
@@ -119,12 +123,17 @@ std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foo
 
 void BaseEstimationPlugin::on_start()
 {
+    _robot->sense(false);
+    _model->syncFrom(*_robot);
+
     if(_est->usesImu())
     {
+        jinfo("resetting model from imu");
         _model->setFloatingBaseState(_imu);
         _model->update();
-        _est->reset();
     }
+
+    _est->reset();
 }
 
 void BaseEstimationPlugin::on_stop()
