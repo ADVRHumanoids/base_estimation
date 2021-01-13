@@ -3,18 +3,42 @@ project(base_estimation)
 
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
-
-find_package(xbot2 REQUIRED)
 find_package(cartesian_interface REQUIRED)
 
-# client
-add_xbot2_plugin(base_estimation src/base_estimation.cpp)
+include_directories(include/)
 
-target_link_libraries(base_estimation PRIVATE ${cartesian_interface_LIBRARIES} xbot2::xbot2_ros_support)
+# compile library
+add_library(ikbe SHARED
+    src/base_estimation.cpp
+    src/vertex_force_optimizer.cpp)
+
+target_link_libraries(ikbe
+    PRIVATE
+    ${cartesian_interface_LIBRARIES}
+    )
 
 install(
-    TARGETS base_estimation
+    TARGETS ikbe
     DESTINATION lib
     )
 
+find_package(xbot2 QUIET)
+
+# compile plugin
+if(${xbot2_FOUND})
+
+    add_xbot2_plugin(base_estimation src/base_estimation_plugin.cpp)
+
+    target_link_libraries(base_estimation
+        PRIVATE
+        ikbe
+        xbot2::xbot2_ros_support
+        )
+
+    install(
+        TARGETS base_estimation
+        DESTINATION lib
+        )
+
+endif()
 
