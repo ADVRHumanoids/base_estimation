@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(base_estimation)
 
+set(CMAKE_CXX_STANDARD 14)
+
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
 find_package(cartesian_interface REQUIRED)
