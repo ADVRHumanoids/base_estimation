@@ -1,5 +1,5 @@
 solver_options:
-    regularization: 1e-3
+    regularization: 1e-4
     back_end: "qpoases"
     front_end: "ihqp"
 

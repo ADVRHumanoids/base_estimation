@@ -64,6 +64,9 @@ private:
 
     std::vector<FtHandler> _ft_handler;
 
+    double _alpha;
+    Eigen::VectorXd _weights;
+
 };
 
 }

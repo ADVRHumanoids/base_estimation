@@ -13,7 +13,8 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
                                      YAML::Node contact_model_pb,
                                      Options opt):
     _model(model),
-    _opt(opt)
+    _opt(opt),
+    _alpha(model->getMass()*9.81)
 {
     // create ci
     auto ci_params = std::make_shared<Cartesian::Parameters>(opt.dt);
@@ -109,7 +110,15 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
         Eigen::Vector6d wrench;
         ft.getWrench(wrench);
 
-        const auto& weights = cf.compute(wrench);
+        _weights = cf.compute(wrench);
+        _weights /= _alpha;
+
+
+        for(unsigned int i = 0; i < item.vertex_tasks.size(); ++i)
+        {
+            int size = item.vertex_tasks[i]->getSize();
+            item.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));
+        }
     }
 
     /* Set joint velocities to postural task */
