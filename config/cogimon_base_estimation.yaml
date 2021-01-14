@@ -42,8 +42,18 @@ xbotcore_plugins:
             enable_log: {type: bool, value: false}
             feet_prefix: {type: vector<string>, value: [l_foot, r_foot]}
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
-		
 
+    inverse_dynamics:
+        thread: rt_main
+        type: cartesio_plugin
+        params:
+            problem_description: {type: file, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_inverse_dynamics.stack}
+            enable_feedback: {type: bool, value: true}
+            use_ground_truth: {type: bool, value: true}
+            model_state_from_topic: {type: bool, value: false}
+            enable_log: {type: bool, value: false}
+        remap:
+            ~/model_state: /base_estimation/model_state
 
 # global parameters
 xbotcore_param:
