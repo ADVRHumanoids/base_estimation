@@ -1,0 +1,114 @@
+solver_options:
+    regularization: 1e-3
+    back_end: "qpoases"
+    variables: [force_l_sole, force_r_sole, force_l_hand]
+
+stack:
+    - ["l_sole", "r_sole"]
+    - ["postural"]
+    - ["LeftWrench", "RightWrench"]
+
+constraints:
+    - "UnderactuatedDyn"
+    - "LeftFlims"
+    - "RightFlims"
+    - "LeftCoP"
+    - "RightCoP"
+
+LeftCoP:
+    lib_name: libcartesio_acceleration_support.so
+    type: "CoP"
+    link: "l_sole"
+    x_limits: [-0.05, 0.1]
+    y_limits: [-0.05, 0.05]
+
+RightCoP:
+    lib_name: libcartesio_acceleration_support.so
+    type: "CoP"
+    link: "r_sole"
+    x_limits: [-0.05, 0.1]
+    y_limits: [-0.05, 0.05]
+
+RightWrench:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Force"
+    link: "r_sole"
+    weight: [1, 1, 1, 1e3, 1e3, 1e3]
+
+LeftWrench:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Force"
+    link: "l_sole"
+    weight: [1, 1, 1, 1e3, 1e3, 1e3]
+
+RightFc:
+    lib_name: libcartesio_acceleration_support.so
+    type: "FrictionCone"
+    link: "r_sole"
+    local: true
+
+LeftFc:
+    lib_name: libcartesio_acceleration_support.so
+    type: "FrictionCone"
+    link: "l_sole"
+    local: true
+
+RightFlims:
+    lib_name: libcartesio_acceleration_support.so
+    type: "ForceLimits"
+    link: "r_sole"
+    min: [-1000, -1000, -1000, -100, -100, -100]
+    max: [1000, 1000, 1000,  100, 100, 100]
+
+LeftFlims:
+    lib_name: libcartesio_acceleration_support.so
+    type: "ForceLimits"
+    link: "l_sole"
+    min: [-1000, -1000, -1000, -100, -10, -100]
+    max: [1000, 1000, 1000, 100, 100, 100]
+
+LHandWrench:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Force"
+    link: "l_wrist"
+    weight: [1, 1, 1, 1e3, 1e3, 1e3]
+
+LHandFc:
+    lib_name: libcartesio_acceleration_support.so
+    type: "FrictionCone"
+    link: "l_wrist"
+
+LHandFlims:
+    lib_name: libcartesio_acceleration_support.so
+    type: "ForceLimits"
+    link: "l_wrist"
+    min: [-1000, -1000, -1000, 0, 0, 0]
+    max: [1000, 1000, 1000, 0, 0, 0]
+
+
+UnderactuatedDyn:
+    lib_name: libcartesio_acceleration_support.so
+    type: "DynamicFeasibility"
+    contacts: ["l_sole", "r_sole"]
+    dynamics: true
+
+l_sole:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Cartesian"
+    lambda: 0.001
+    distal_link: "l_sole"
+
+r_sole:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Cartesian"
+    lambda: 0.001
+    distal_link: "r_sole"
+
+postural:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Postural"
+    lambda: 0.001
+
+
+
+
