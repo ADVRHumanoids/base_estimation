@@ -25,6 +25,7 @@ bool BaseEstimationPlugin::on_initialize()
 
     // estimator options
     ikbe::BaseEstimation::Options est_opt;
+    est_opt.dt = getPeriodSec();
     est_opt.log_enabled = getParamOr("~enable_log", false);
 
     // create estimator
@@ -87,11 +88,17 @@ bool BaseEstimationPlugin::on_initialize()
               fmt::join(vertices, ", "));
     }
 
+    // publishers
     ros::NodeHandle nh(getName());
     _ros = std::make_unique<RosSupport>(nh);
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link_twist", 1);
+
+
+    _model_state_msg.first.setZero(_model->getJointNum());
+    _model_state_msg.second.setZero(_model->getJointNum());
+    _model_state_pub = advertise<ModelState>("~model_state", _model_state_msg);
 
     return true;
 }
@@ -125,8 +132,14 @@ void BaseEstimationPlugin::run()
         jerror("unable to solve");
     }
 
-    /* Base Pose broadcast */
+    /* Base state broadcast */
     publishToROS(base_pose, base_vel);
+
+    /* Model state broadcast */
+    _model->getJointPosition(_model_state_msg.first);
+    _model->getJointVelocity(_model_state_msg.second);
+    _model_state_pub->publish(_model_state_msg);
+
 }
 
 void BaseEstimationPlugin::on_stop()
@@ -181,6 +194,7 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
     _base_pose_pub->publish(Pmsg);
 
     geometry_msgs::TwistStamped Vmsg;
+    Vmsg.header = Tmsg.header;
     Vmsg.twist.linear.x = v[0];
     Vmsg.twist.linear.y = v[1];
     Vmsg.twist.linear.z = v[2];
