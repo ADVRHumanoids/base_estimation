@@ -7,6 +7,7 @@
 #include <xbot2/ros/ros_support.h>
 #include <tf2_msgs/TFMessage.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <base_estimation/base_estimation.h>
 
 namespace XBot {
@@ -24,7 +25,7 @@ public:
 
 private:
 
-    void publishToROS(const Eigen::Affine3d& T);
+    void publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v);
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
     std::vector<std::string> footFrames(const std::string& foot_prefix);
 
@@ -35,6 +36,7 @@ private:
     RosSupport::UniquePtr _ros;
     PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
     PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub;
+    PublisherPtr<geometry_msgs::TwistStamped> _base_twist_pub;
 
 };
 

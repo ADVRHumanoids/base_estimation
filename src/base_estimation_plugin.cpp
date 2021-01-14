@@ -91,7 +91,7 @@ bool BaseEstimationPlugin::on_initialize()
     _ros = std::make_unique<RosSupport>(nh);
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
-
+    _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link_twist", 1);
 
     return true;
 }
@@ -126,7 +126,7 @@ void BaseEstimationPlugin::run()
     }
 
     /* Base Pose broadcast */
-    publishToROS(base_pose);
+    publishToROS(base_pose, base_vel);
 }
 
 void BaseEstimationPlugin::on_stop()
@@ -157,7 +157,7 @@ std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foo
     return feet_tasks;
 }
 
-void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T)
+void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v)
 {
     tf2_msgs::TFMessage msg;
 
@@ -179,6 +179,15 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T)
     geometry_msgs::PoseStamped Pmsg;
     convert(Tmsg, Pmsg);
     _base_pose_pub->publish(Pmsg);
+
+    geometry_msgs::TwistStamped Vmsg;
+    Vmsg.twist.linear.x = v[0];
+    Vmsg.twist.linear.y = v[1];
+    Vmsg.twist.linear.z = v[2];
+    Vmsg.twist.angular.x = v[3];
+    Vmsg.twist.angular.y = v[4];
+    Vmsg.twist.angular.z = v[5];
+    _base_twist_pub->publish(Vmsg);
 }
 
 void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
