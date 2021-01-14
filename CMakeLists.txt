@@ -44,3 +44,5 @@ if(${xbot2_FOUND})
 
 endif()
 
+# compile cartesio rt
+add_subdirectory(cartesio)
