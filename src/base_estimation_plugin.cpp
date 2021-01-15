@@ -92,8 +92,8 @@ bool BaseEstimationPlugin::on_initialize()
     ros::NodeHandle nh(getName());
     _ros = std::make_unique<RosSupport>(nh);
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
-    _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link", 1);
-    _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link_twist", 1);
+    _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
+    _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
 
 
     _model_state_msg.first.setZero(_model->getJointNum());
