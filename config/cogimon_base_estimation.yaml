@@ -36,7 +36,7 @@ xbotcore_plugins:
         thread: rt_main 
         type: base_estimation
         params:
-            ik_problem: {type: yamlfile, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_base_estimation.stack}
+            ik_problem: {type: yamlfile, value: $PWD/cogimon_base_estimation.stack}
             world_frame_link: {type: string, value: l_sole}
             use_imu: {type: bool, value: true}
             enable_log: {type: bool, value: false}
@@ -47,13 +47,26 @@ xbotcore_plugins:
         thread: rt_main
         type: cartesio_plugin
         params:
-            problem_description: {type: file, value: $ROBOTOLOGY_ROOT/external/base_estimation/config/cogimon_inverse_dynamics.stack}
+            problem_description: {type: file, value: $PWD/cogimon_inverse_dynamics.stack}
             enable_feedback: {type: bool, value: true}
             use_ground_truth: {type: bool, value: true}
             model_state_from_topic: {type: bool, value: false}
             enable_log: {type: bool, value: false}
         remap:
             ~/model_state: /base_estimation/model_state
+
+    impedance_zero:
+        type: impedance_setpoint
+        thread: rt_main
+        params:
+            time: {value: 2.0, type: double}
+
+    impedance_restore:
+        type: impedance_setpoint
+        thread: rt_main
+        params:
+            time: {value: 2.0, type: double}
+            restore_impedance: {value: true, type: bool}
 
 # global parameters
 xbotcore_param:
