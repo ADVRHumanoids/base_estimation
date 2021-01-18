@@ -52,6 +52,7 @@ xbotcore_plugins:
             use_ground_truth: {type: bool, value: true}
             model_state_from_topic: {type: bool, value: false}
             enable_log: {type: bool, value: false}
+            joint_impedance_scaling: {type: double, value: 0.1}
         remap:
             ~/model_state: /base_estimation/model_state
 

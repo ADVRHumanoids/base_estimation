@@ -1,14 +1,16 @@
 solver_options:
-    regularization: 1e-9
+    regularization: 1e-6
     back_end: "qpoases"
-    variables: [force_l_sole, force_r_sole, force_l_hand]
-
+    
 stack:
-    - ["l_sole", "r_sole", "waist"]
-    - ["postural", "LeftWrench", "RightWrench"]
+    - ["waist", "LeftWrench", "RightWrench"] 
+    - ["postural"]
+
 
 constraints:
-    - "UnderactuatedDyn"
+    - "UnderactuatedDyn" 
+    - "l_sole"
+    - "r_sole"
 
 LeftCoP:
     lib_name: libcartesio_acceleration_support.so
@@ -90,25 +92,26 @@ UnderactuatedDyn:
 l_sole:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.000001
+    lambda: 0.0
+    lambda2: 0.0
     distal_link: "l_sole"
 
 r_sole:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.000001
+    lambda: 0.0
+    lambda2: 0.0
     distal_link: "r_sole"
 
 waist:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.0001
+    lambda: 0.001
     distal_link: "Waist"
 
 postural:
     lib_name: libcartesio_acceleration_support.so
-    type: "Postural"
-    lambda: 0.00001
+    type: "PosturalInteraction"
     weight:
       VIRTUALJOINT_1: 0
       VIRTUALJOINT_2: 0

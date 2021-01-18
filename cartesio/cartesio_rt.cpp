@@ -28,6 +28,18 @@ bool CartesioRt::on_initialize()
     /* Create model and ci for rt loop */
     _rt_model = ModelInterface::getModel(_robot->getConfigOptions());
 
+    double joint_impedance_gain = getParamOr<double>("~joint_impedance_scaling", 0.1);
+
+    Eigen::VectorXd act_joint_stiffness, act_joint_damping;
+    _robot->getStiffness(act_joint_stiffness);
+    _robot->getDamping(act_joint_damping);
+    Eigen::VectorXd joint_stiffness(_rt_model->getJointNum()), joint_damping(_rt_model->getJointNum());
+    joint_stiffness<<0.,0.,0.,0.,0.,0.,joint_impedance_gain*act_joint_stiffness;
+    joint_damping<<0.,0.,0.,0.,0.,0.,std::sqrt(joint_impedance_gain)*act_joint_damping;
+    _rt_model->setStiffness(joint_stiffness);
+    _rt_model->setDamping(joint_damping);
+    _rt_model->update();
+
     auto rt_ctx = std::make_shared<Cartesian::Context>(
                 std::make_shared<Parameters>(getPeriodSec()),
                 _rt_model);
