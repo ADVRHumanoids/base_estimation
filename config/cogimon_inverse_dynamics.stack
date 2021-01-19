@@ -1,16 +1,17 @@
 solver_options:
-    regularization: 1e-6
+    regularization: 1e-3
     back_end: "qpoases"
     
 stack:
-    - ["waist", "LeftWrench", "RightWrench"] 
-    - ["postural"]
+    - ["l_sole", "r_sole"]
+    - ["waist" ] 
+    - ["postural", "LeftWrench", "RightWrench"]
 
 
 constraints:
     - "UnderactuatedDyn" 
-    - "l_sole"
-    - "r_sole"
+    #- "l_sole"
+    #- "r_sole"
 
 LeftCoP:
     lib_name: libcartesio_acceleration_support.so
@@ -30,13 +31,13 @@ RightWrench:
     lib_name: libcartesio_acceleration_support.so
     type: "Force"
     link: "r_sole"
-    weight: 1e-6
+    #weight: 1e-6
 
 LeftWrench:
     lib_name: libcartesio_acceleration_support.so
     type: "Force"
     link: "l_sole"
-    weight: 1e-6
+    #weight: 1e-6
 
 RightFc:
     lib_name: libcartesio_acceleration_support.so
@@ -106,12 +107,14 @@ r_sole:
 waist:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.001
+    lambda: 0.0001
     distal_link: "Waist"
 
 postural:
     lib_name: libcartesio_acceleration_support.so
-    type: "PosturalInteraction"
+    type: "Postural"
+    lambda: 0.01
+    #lambda2: 0.0001
     weight:
       VIRTUALJOINT_1: 0
       VIRTUALJOINT_2: 0
@@ -119,6 +122,19 @@ postural:
       VIRTUALJOINT_4: 0
       VIRTUALJOINT_5: 0
       VIRTUALJOINT_6: 0
+      #RHipLat: 0
+      #RHipSag: 0
+      #RHipYaw: 0
+      #RKneePitch: 0
+      #RAnklePitch: 0
+      #RAnkleRoll: 0
+      #LHipLat: 0
+      #LHipSag: 0
+      #LHipYaw: 0
+      #LKneePitch: 0
+      #LAnklePitch: 0
+      #LAnkleRoll: 0
+      
 
 
 
