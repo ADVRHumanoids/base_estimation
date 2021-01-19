@@ -122,10 +122,11 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     }
 
     /* Set joint velocities to postural task */
+    _model->getJointVelocity(_qdot);
     _postural->setReferenceVelocity(_qdot);
 
     /* Solve IK */
-    if(!_ci->update(0., _opt.dt))
+    if(!_ci->update(0., _opt.dt))  // this updates model qdot
     {
         return false;
     }

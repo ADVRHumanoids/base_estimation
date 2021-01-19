@@ -9,6 +9,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <base_estimation/base_estimation.h>
+#include <xbot2/gazebo/dev_link_state_sensor.h>
+#include <matlogger2/matlogger2.h>
 
 namespace XBot {
 
@@ -34,14 +36,17 @@ private:
     ModelInterface::Ptr _model;
     ImuSensor::ConstPtr _imu;
     ikbe::BaseEstimation::UniquePtr _est;
+    std::shared_ptr<Hal::LinkStateSensor> _gz;
 
     RosSupport::UniquePtr _ros;
     PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
-    PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub;
-    PublisherPtr<geometry_msgs::TwistStamped> _base_twist_pub;
+    PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub, _base_pose_gz_pub;
+    PublisherPtr<geometry_msgs::TwistStamped> _base_twist_pub, _base_twist_gz_pub;
 
     PublisherPtr<ModelState> _model_state_pub;
     ModelState _model_state_msg;
+
+    MatLogger2::Ptr _logger;
 
 };
 

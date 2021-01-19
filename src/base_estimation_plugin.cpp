@@ -1,5 +1,6 @@
 #include "base_estimation_plugin.h"
 #include <tf2_eigen/tf2_eigen.h>
+#include <eigen_conversions/eigen_msg.h>
 
 using namespace XBot;
 using namespace std::string_literals;
@@ -7,6 +8,10 @@ using namespace std::string_literals;
 
 bool BaseEstimationPlugin::on_initialize()
 {
+    // logger
+    _logger = MatLogger2::MakeLogger("/tmp/ikbe_log");
+    _logger->set_buffer_mode(VariableBuffer::Mode::circular_buffer);
+
     // print all
     setJournalLevel(Journal::Level::Low);
 
@@ -15,6 +20,13 @@ bool BaseEstimationPlugin::on_initialize()
 
     // create model
     _model = ModelInterface::getModel(_robot->getConfigOptions());
+
+    // check if floating base
+    if(!_model->isFloatingBase())
+    {
+        jerror("model is fixed base");
+        return false;
+    }
 
     // set model to the robot state
     _robot->sense(false);
@@ -63,6 +75,30 @@ bool BaseEstimationPlugin::on_initialize()
         _model->setFloatingBasePose(fb_T_l.inverse());
         _model->update();
     }
+    // set world frame from ground truth
+    else if(getParamOr("~world_from_gz", false))
+    {
+        auto lss = _robot->getDevices<Hal::LinkStateSensor>();
+
+        std::string fb_name;
+        _model->getFloatingBaseLink(fb_name);
+
+        for(auto d : lss.get_device_vector())
+        {
+            if(d->getLinkName() == fb_name)
+            {
+                _gz = d;
+            }
+        }
+
+        if(!_gz)
+        {
+            throw std::runtime_error(
+                        fmt::format(
+                            "link state sensor for link '{}' unavailable",
+                            fb_name));
+        }
+    }
 
     // get contact properties
     auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
@@ -95,7 +131,13 @@ bool BaseEstimationPlugin::on_initialize()
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
 
+    if(_gz)
+    {
+        _base_pose_gz_pub = _ros->advertise<geometry_msgs::PoseStamped>("/gazebo/base_link/pose", 1);
+        _base_twist_gz_pub = _ros->advertise<geometry_msgs::TwistStamped>("/gazebo/base_link/twist", 1);
+    }
 
+    // advertise internal model state topic
     _model_state_msg.first.setZero(_model->getJointNum());
     _model_state_msg.second.setZero(_model->getJointNum());
     _model_state_pub = advertise<ModelState>("~model_state", _model_state_msg);
@@ -108,12 +150,18 @@ void BaseEstimationPlugin::on_start()
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
-    if(_est->usesImu())
+    if(_gz)
+    {
+        _model->setFloatingBaseState(_gz->getPose(),
+                                     _gz->getTwist());
+    }
+    else if(_est->usesImu())
     {
         jinfo("resetting model from imu");
         _model->setFloatingBaseState(_imu);
-        _model->update();
     }
+
+    _model->update();
 
     _est->reset();
 }
@@ -172,6 +220,8 @@ std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foo
 
 void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v)
 {
+
+    // publish tf
     tf2_msgs::TFMessage msg;
 
     geometry_msgs::TransformStamped Tmsg = tf2::eigenToTransform(T);
@@ -187,8 +237,9 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
     Tmsg.header.stamp = t;
 
     msg.transforms.push_back(Tmsg);
-
     _base_tf_pub->publish(msg);
+
+    // publish geomsg
     geometry_msgs::PoseStamped Pmsg;
     convert(Tmsg, Pmsg);
     _base_pose_pub->publish(Pmsg);
@@ -202,6 +253,16 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
     Vmsg.twist.angular.y = v[4];
     Vmsg.twist.angular.z = v[5];
     _base_twist_pub->publish(Vmsg);
+
+    // publish ground truth
+    if(_gz)
+    {
+        tf::poseEigenToMsg(_gz->getPose(), Pmsg.pose);
+        tf::twistEigenToMsg(_gz->getTwist(), Vmsg.twist);
+        _base_pose_gz_pub->publish(Pmsg);
+        _base_twist_gz_pub->publish(Vmsg);
+    }
+
 }
 
 void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
