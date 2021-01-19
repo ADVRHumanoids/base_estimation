@@ -34,8 +34,8 @@ bool CartesioRt::on_initialize()
     _robot->getStiffness(act_joint_stiffness);
     _robot->getDamping(act_joint_damping);
     Eigen::VectorXd joint_stiffness(_rt_model->getJointNum()), joint_damping(_rt_model->getJointNum());
-    joint_stiffness<<0.,0.,0.,0.,0.,0.,joint_impedance_gain*act_joint_stiffness;
-    joint_damping<<0.,0.,0.,0.,0.,0.,std::sqrt(joint_impedance_gain)*act_joint_damping;
+    joint_stiffness << 0, 0, 0, 0, 0, 0, joint_impedance_gain*act_joint_stiffness;
+    joint_damping   << 0, 0, 0, 0, 0, 0, std::sqrt(joint_impedance_gain)*act_joint_damping;
     _rt_model->setStiffness(joint_stiffness);
     _rt_model->setDamping(joint_damping);
     _rt_model->update();
@@ -123,7 +123,8 @@ bool CartesioRt::on_initialize()
     }
 
     /* Ground truth */
-    if(getParamOr("~use_ground_truth", false))
+    if(getParamOr("~use_ground_truth", false) &&
+            _rt_model->isFloatingBase())
     {
         auto lss = _robot->getDevices<Hal::LinkStateSensor>();
 
@@ -232,8 +233,6 @@ void CartesioRt::run()
                 _rt_model->update();
             }
         }
-
-        // tbd: optional ground truth option
 
     }
 
