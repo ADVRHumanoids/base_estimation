@@ -39,7 +39,7 @@ xbotcore_plugins:
             ik_problem: {type: yamlfile, value: $PWD/cogimon_base_estimation.stack}
             #world_frame_link: {type: string, value: l_sole}
             world_from_gz: {type: bool, value: true}
-            use_imu: {type: bool, value: false}
+            use_imu: {type: bool, value: true}
             enable_log: {type: bool, value: false}
             feet_prefix: {type: vector<string>, value: [l_foot, r_foot]}
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}

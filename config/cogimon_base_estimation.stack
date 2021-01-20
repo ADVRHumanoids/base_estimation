@@ -25,7 +25,7 @@ Postural:
 IMU:
     type: "Cartesian"
     distal_link: "imu_link"
-    lambda: 0.0
+    lambda: 0.1
     indices: [3,4,5]
     weight: 10
     active: false
