@@ -43,6 +43,9 @@ xbotcore_plugins:
             enable_log: {type: bool, value: false}
             feet_prefix: {type: vector<string>, value: [l_foot, r_foot]}
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
+            filter_damping: {type: double, value: 1.}
+            filter_omega: {type: double, value: 100.}
+
 
     inverse_dynamics:
         thread: rt_main
@@ -50,8 +53,8 @@ xbotcore_plugins:
         params:
             problem_description: {type: file, value: $PWD/cogimon_inverse_dynamics.stack}
             enable_feedback: {type: bool, value: true}
-            use_ground_truth: {type: bool, value: true}
-            model_state_from_topic: {type: bool, value: false}
+            use_ground_truth: {type: bool, value: false}
+            model_state_from_topic: {type: bool, value: true}
             enable_log: {type: bool, value: false}
             joint_impedance_scaling: {type: double, value: 0.1}
         remap:

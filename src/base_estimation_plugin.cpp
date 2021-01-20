@@ -130,6 +130,7 @@ bool BaseEstimationPlugin::on_initialize()
     _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
+    _base_raw_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/raw_twist", 1);
 
     if(_gz)
     {
@@ -141,6 +142,20 @@ bool BaseEstimationPlugin::on_initialize()
     _model_state_msg.first.setZero(_model->getJointNum());
     _model_state_msg.second.setZero(_model->getJointNum());
     _model_state_pub = advertise<ModelState>("~model_state", _model_state_msg);
+
+
+    //Filter params
+    double filter_param = 0.;
+    if(getParam("~filter_omega", filter_param))
+    {
+        _est->setFilterOmega(filter_param);
+    }
+    if(getParam("~filter_damping", filter_param))
+    {
+        _est->setFilterDamping(filter_param);
+    }
+
+    _est->setFilterTs(getPeriodSec());
 
     return true;
 }
@@ -174,14 +189,14 @@ void BaseEstimationPlugin::run()
 
     /* Update estimate */
     Eigen::Affine3d base_pose;
-    Eigen::Vector6d base_vel;
-    if(!_est->update(base_pose, base_vel))
+    Eigen::Vector6d base_vel, raw_base_vel;
+    if(!_est->update(base_pose, base_vel, raw_base_vel))
     {
         jerror("unable to solve");
     }
 
     /* Base state broadcast */
-    publishToROS(base_pose, base_vel);
+    publishToROS(base_pose, base_vel, raw_base_vel);
 
     /* Model state broadcast */
     _model->getJointPosition(_model_state_msg.first);
@@ -218,7 +233,8 @@ std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foo
     return feet_tasks;
 }
 
-void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v)
+void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v,
+                                        const Eigen::Vector6d& raw_v)
 {
 
     // publish tf
@@ -253,6 +269,14 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
     Vmsg.twist.angular.y = v[4];
     Vmsg.twist.angular.z = v[5];
     _base_twist_pub->publish(Vmsg);
+
+    Vmsg.twist.linear.x = raw_v[0];
+    Vmsg.twist.linear.y = raw_v[1];
+    Vmsg.twist.linear.z = raw_v[2];
+    Vmsg.twist.angular.x = raw_v[3];
+    Vmsg.twist.angular.y = raw_v[4];
+    Vmsg.twist.angular.z = raw_v[5];
+    _base_raw_twist_pub->publish(Vmsg);
 
     // publish ground truth
     if(_gz)

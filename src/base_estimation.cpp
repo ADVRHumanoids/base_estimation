@@ -30,6 +30,8 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
 
     // get postural
     _postural = task_as<Cartesian::PosturalTask>(_ci->getTask("Postural"));
+
+    _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d> > ();
 }
 
 Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
@@ -77,7 +79,8 @@ void BaseEstimation::addFt(ForceTorqueSensor::ConstPtr ft,
 }
 
 bool BaseEstimation::update(Eigen::Affine3d& pose,
-                            Eigen::Vector6d& vel)
+                            Eigen::Vector6d& vel,
+                            Eigen::Vector6d& raw_vel)
 {
     // imu
     if(_imu)
@@ -139,7 +142,11 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     _model->update();
 
     _model->getFloatingBasePose(pose);
-    _model->getFloatingBaseTwist(vel);
+    _model->getFloatingBaseTwist(raw_vel);
+
+    vel = _vel_filter->process(raw_vel);
+    _model->setFloatingBaseTwist(vel);
+    _model->update();
 
     return true;
 
@@ -154,4 +161,19 @@ BaseEstimation::Options::Options()
 {
     dt = 1.0;
     log_enabled = false;
+}
+
+void BaseEstimation::setFilterOmega(const double omega)
+{
+    _vel_filter->setOmega(omega);
+}
+
+void BaseEstimation::setFilterDamping(const double eps)
+{
+    _vel_filter->setDamping(eps);
+}
+
+void BaseEstimation::setFilterTs(const double ts)
+{
+    _vel_filter->setTimeStep(ts);
 }

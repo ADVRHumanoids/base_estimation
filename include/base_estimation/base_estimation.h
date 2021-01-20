@@ -6,6 +6,8 @@
 #include <cartesian_interface/CartesianInterfaceImpl.h>
 #include <cartesian_interface/problem/Postural.h>
 
+#include <XBotInterface/Utils.h>
+
 namespace ikbe
 {
 
@@ -38,10 +40,22 @@ public:
     void addFt(XBot::ForceTorqueSensor::ConstPtr ft,
                std::vector<std::string> contact_points);
 
+    /**
+     * @brief update
+     * @param pose estimated base pose
+     * @param vel estimated filtered base velocity
+     * @param raw_vel estimated base velocity
+     * @return
+     */
     bool update(Eigen::Affine3d& pose,
-                Eigen::Vector6d& vel);
+                Eigen::Vector6d& vel,
+                Eigen::Vector6d& raw_vel);
 
     void reset();
+
+    void setFilterOmega(const double omega);
+    void setFilterDamping(const double eps);
+    void setFilterTs(const double ts);
 
 private:
 
@@ -66,6 +80,9 @@ private:
 
     double _alpha;
     Eigen::VectorXd _weights;
+
+    XBot::Utils::SecondOrderFilter<Eigen::Vector6d>::Ptr _vel_filter;
+
 
 };
 
