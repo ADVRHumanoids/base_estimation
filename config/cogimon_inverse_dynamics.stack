@@ -3,15 +3,15 @@ solver_options:
     back_end: "qpoases"
     
 stack:
-    - ["l_sole", "r_sole"]
-    - ["waist" ] 
-    - ["postural", "LeftWrench", "RightWrench"]
+    - ["l_sole", "r_sole", "waist", "com","LeftWrench", "RightWrench", "postural"]
 
 
 constraints:
     - "UnderactuatedDyn" 
-    #- "l_sole"
-    #- "r_sole"
+    - "RightFc"
+    - "LeftFc"
+    - "LeftCoP"
+    - "RightCoP"
 
 LeftCoP:
     lib_name: libcartesio_acceleration_support.so
@@ -31,13 +31,13 @@ RightWrench:
     lib_name: libcartesio_acceleration_support.so
     type: "Force"
     link: "r_sole"
-    #weight: 1e-6
+    weight: 1e-3
 
 LeftWrench:
     lib_name: libcartesio_acceleration_support.so
     type: "Force"
     link: "l_sole"
-    #weight: 1e-6
+    weight: 1e-3
 
 RightFc:
     lib_name: libcartesio_acceleration_support.so
@@ -55,33 +55,15 @@ RightFlims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "r_sole"
-    min: [-1000, -1000, -1000, -100, -100, -100]
-    max: [1000, 1000, 1000,  100, 100, 100]
+    min: [0, 0, 0, -1000, -1000, -1000]
+    max: [1000, 1000, 1000,  1000, 1000, 1000]
 
 LeftFlims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "l_sole"
-    min: [-1000, -1000, -1000, -100, -10, -100]
-    max: [1000, 1000, 1000, 100, 100, 100]
-
-LHandWrench:
-    lib_name: libcartesio_acceleration_support.so
-    type: "Force"
-    link: "l_wrist"
-    weight: [1, 1, 1, 1e3, 1e3, 1e3]
-
-LHandFc:
-    lib_name: libcartesio_acceleration_support.so
-    type: "FrictionCone"
-    link: "l_wrist"
-
-LHandFlims:
-    lib_name: libcartesio_acceleration_support.so
-    type: "ForceLimits"
-    link: "l_wrist"
-    min: [-1000, -1000, -1000, 0, 0, 0]
-    max: [1000, 1000, 1000, 0, 0, 0]
+    min: [0, 0, 0, -1000, -1000, -1000]
+    max: [1000, 1000, 1000, 1000, 1000, 1000]
 
 
 UnderactuatedDyn:
@@ -109,11 +91,18 @@ waist:
     type: "Cartesian"
     lambda: 0.0001
     distal_link: "Waist"
+    indices: [3,4,5]
+
+com:
+    lib_name: libcartesio_acceleration_support.so
+    type: "Com"
+    lambda: 0.0002
+    weight: 10
 
 postural:
     lib_name: libcartesio_acceleration_support.so
     type: "Postural"
-    lambda: 0.01
+    lambda: 0.001
     #lambda2: 0.0001
     weight:
       VIRTUALJOINT_1: 0
@@ -122,18 +111,18 @@ postural:
       VIRTUALJOINT_4: 0
       VIRTUALJOINT_5: 0
       VIRTUALJOINT_6: 0
-      #RHipLat: 0
-      #RHipSag: 0
-      #RHipYaw: 0
-      #RKneePitch: 0
-      #RAnklePitch: 0
-      #RAnkleRoll: 0
-      #LHipLat: 0
-      #LHipSag: 0
-      #LHipYaw: 0
-      #LKneePitch: 0
-      #LAnklePitch: 0
-      #LAnkleRoll: 0
+      RHipLat: 0
+      RHipSag: 0
+      RHipYaw: 0
+      RKneePitch: 0
+      RAnklePitch: 0
+      RAnkleRoll: 0
+      LHipLat: 0
+      LHipSag: 0
+      LHipYaw: 0
+      LKneePitch: 0
+      LAnklePitch: 0
+      LAnkleRoll: 0
       
 
 
