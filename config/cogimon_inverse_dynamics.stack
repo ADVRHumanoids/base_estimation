@@ -7,11 +7,18 @@ stack:
 
 
 constraints:
-    - "UnderactuatedDyn" 
+    - "TorqueLimits"
     - "RightFc"
     - "LeftFc"
     - "LeftCoP"
     - "RightCoP"
+    - "RightFlims"
+    - "LeftFlims"
+
+TorqueLimits:
+    lib_name: libcartesio_acceleration_support.so
+    type: "TorqueLimits"
+    contacts: ["l_sole", "r_sole"]
 
 LeftCoP:
     lib_name: libcartesio_acceleration_support.so
@@ -55,41 +62,34 @@ RightFlims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "r_sole"
-    min: [0, 0, 0, -1000, -1000, -1000]
-    max: [1000, 1000, 1000,  1000, 1000, 1000]
+    min: [-10000, -10000, -10000, -10000, -10000, -10000]
+    max: [10000, 10000, 10000,  10000, 10000, 10000]
 
 LeftFlims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "l_sole"
-    min: [0, 0, 0, -1000, -1000, -1000]
-    max: [1000, 1000, 1000, 1000, 1000, 1000]
-
-
-UnderactuatedDyn:
-    lib_name: libcartesio_acceleration_support.so
-    type: "DynamicFeasibility"
-    contacts: ["l_sole", "r_sole"]
-    dynamics: true
+    min: [-10000, -10000, -10000, -10000, -10000, -10000]
+    max: [10000, 10000, 10000,  10000, 10000, 10000]
 
 l_sole:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
     lambda: 0.0
-    lambda2: 0.0
     distal_link: "l_sole"
+    weight: 100
 
 r_sole:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
     lambda: 0.0
-    lambda2: 0.0
     distal_link: "r_sole"
+    weight: 100
 
 waist:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.0001
+    lambda: 0.0002
     distal_link: "Waist"
     indices: [3,4,5]
 
