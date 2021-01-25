@@ -193,6 +193,7 @@ void BaseEstimationPlugin::run()
     if(!_est->update(base_pose, base_vel, raw_base_vel))
     {
         jerror("unable to solve");
+        return;
     }
 
     /* Base state broadcast */
