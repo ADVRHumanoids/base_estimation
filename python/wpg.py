@@ -17,6 +17,10 @@ T = 2.0 # time horizon
 width_foot = 0.1
 length_foot = 0.2
 
+max_stride_x = 0.8
+max_stride_y = width_foot / 2. + 0.5
+min_stride_y = width_foot / 2. + 0.1
+
 grav = 9.81
 h = 1.
 
@@ -88,10 +92,17 @@ for k in range(N+1):
                 0., 0.,  # com acc
                 0., 0.1,  # left foot pos
                 0., -0.1,  # left foot pos
-                0.25, 0.25, 0.25, 0.25,  # alpha l
-                0.25, 0.25, 0.25, 0.25  # alpha r
+                0., 0., 0., 0.,  # alpha l
+                0., 0., 0., 0.  # alpha r
                 ]
-        ubw += lbw
+        ubw += [0., 0.,  # com pos
+                0., 0.,  # com vel
+                0., 0.,  # com acc
+                0., 0.1,  # left foot pos
+                0., -0.1,  # left foot pos
+                1., 1., 1., 1.,  # alpha l
+                1., 1., 1., 1.  # alpha r
+                ]
     elif k == N:
         lbw += [-100., -100.,  # com pos
                 0., 0.,  # com vel
@@ -151,27 +162,37 @@ for k in range(N+1):
         XInt.append([Fk['xf'], Xk[6:8], Xk[8:10]])
         J = J + mtimes(Fk['qf'].T, Fk['qf'])
 
+        # Regularization of alphas
+        Ak = Xk[10:18]
+        J = J + mtimes(Ak.T, Ak)
+
+
     #WALKING SCHEDULER
     ZMP = Xk[0:2] - Xk[4:6] * (h / grav)
     Lk = Xk[6:8]
     Rk = Xk[8:10]
+
+
+    g += [Lk[0] - Rk[0]]
+    lbg += [-max_stride_x]
+    ubg += [max_stride_x]
+    g += [Lk[1] - Rk[1]]
+    lbg += [-max_stride_y]
+    ubg += [max_stride_y]
+
+    J = J + 10*sumsqr((Lk[1] - Rk[1]) - min_stride_y)
+
+
     l_lu, l_ru, l_rh, l_lh = getWeightedEdges(Xk[10:14], Lk, length_foot, width_foot)
     r_lu, r_ru, r_rh, r_lh = getWeightedEdges(Xk[14:18], Rk, length_foot, width_foot)
-    if k <= 20:
+    if k <= 20: #double stance
         # ZMP in support polygon
         for i in range(2):
-            g += [ZMP[i] - (l_lu[i] + r_ru[i] + r_rh[i] + l_lh[i])]
+            g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i] + r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
             lbg += [0]
             ubg += [0]
-        # for i in range(2):
-        #     g += [ZMP[i] - (r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-        #     lbg += [0]
-        #     ubg += [0]
-        #
-        g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
-        lbg += [1.]
-        ubg += [1.]
-        g += [Xk[14] + Xk[15] + Xk[16] + Xk[17]]
+
+        g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
         lbg += [1.]
         ubg += [1.]
 
@@ -189,25 +210,7 @@ for k in range(N+1):
     else:
         J += 10000 * mtimes((ZMP - [0.5, 0.5]).T, (ZMP - [0.5, 0.5]))
 
-        if k > 21:
-            for i in range(2):
-                g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i])]
-                lbg += [0]
-                ubg += [0]
-
-            g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
-            lbg += [1.]
-            ubg += [1.]
-            g += [Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-            lbg += [0.]
-            ubg += [0.]
-
-            Lk_prev = XInt[k - 1][1]
-            g += [Lk - Lk_prev]
-            lbg += [0., 0.]
-            ubg += [0., 0.]
-
-        else:
+        if k <= 30: #single stance
             for i in range(2):
                 g += [ZMP[i] - (r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
                 lbg += [0]
@@ -224,6 +227,27 @@ for k in range(N+1):
             g += [Rk - Rk_prev]
             lbg += [0., 0.]
             ubg += [0., 0.]
+
+        else: #double stance
+            # ZMP in support polygon
+            for i in range(2):
+                g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i] + r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
+                lbg += [0]
+                ubg += [0]
+
+            g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
+            lbg += [1.]
+            ubg += [1.]
+
+            if k > 0:
+                Lk_prev = XInt[k - 1][1]
+                Rk_prev = XInt[k - 1][2]
+                g += [Lk - Lk_prev]
+                lbg += [0., 0.]
+                ubg += [0., 0.]
+                g += [Rk - Rk_prev]
+                lbg += [0., 0.]
+                ubg += [0., 0.]
 
     # elif k > 50 and k <= 80:
     #     J += 100 * mtimes((ZMP - [1., -0.5]).T, (ZMP - [1., -0.5]))
@@ -402,7 +426,7 @@ plt.plot(zmpx, zmpy, '-')
 ######## LEFT foot ######
 k = 0
 for pos_x, pos_y in zip(lx, ly):
-    if alphal[k] == 1.:
+    if alphal[k] > 1e-6:
         coord = [[pos_x+length_foot/2.,pos_y+width_foot/2.],
                  [pos_x+length_foot/2.,pos_y-width_foot/2.],
                  [pos_x-length_foot/2.,pos_y-width_foot/2.],
@@ -416,7 +440,7 @@ for pos_x, pos_y in zip(lx, ly):
 ######## RIGHT foot ######
 k = 0
 for pos_x, pos_y in zip(rx, ry):
-    if alphar[k] == 1.:
+    if alphar[k] > 1e-6:
         coord = [[pos_x+length_foot/2.,pos_y+width_foot/2.], [pos_x+length_foot/2.,pos_y-width_foot/2.], [pos_x-length_foot/2.,pos_y-width_foot/2.], [pos_x-length_foot/2.,pos_y+width_foot/2.]]
         coord.append(coord[0]) #repeat the first point to create a 'closed loop'
         xs, ys = zip(*coord) #create lists of x and y values
