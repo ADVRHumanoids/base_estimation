@@ -12,14 +12,14 @@ def getWeightedEdges(alpha_vec, p, length_foot, width_foot):
 
 
 N = 50 # number of control intervals
-T = 2.0 # time horizon
+T = 1.0 # time horizon
 
 width_foot = 0.1
 length_foot = 0.2
 
 max_stride_x = 0.8
 max_stride_y = width_foot / 2. + 0.5
-min_stride_y = width_foot / 2. + 0.1
+min_stride_y = width_foot / 2. + 0.15
 
 grav = 9.81
 h = 1.
@@ -88,7 +88,7 @@ for k in range(N+1):
     w += [Xk]
     if k == 0: # at the beginning, position, velocity and acceleration to ZERO
         lbw += [0., 0.,  # com pos
-                0., 0.,  # com vel
+                .5, .0,  # com vel
                 0., 0.,  # com acc
                 0., 0.1,  # left foot pos
                 0., -0.1,  # left foot pos
@@ -96,14 +96,14 @@ for k in range(N+1):
                 0., 0., 0., 0.  # alpha r
                 ]
         ubw += [0., 0.,  # com pos
-                0., 0.,  # com vel
+                .5, .0,  # com vel
                 0., 0.,  # com acc
                 0., 0.1,  # left foot pos
                 0., -0.1,  # left foot pos
                 1., 1., 1., 1.,  # alpha l
                 1., 1., 1., 1.  # alpha r
                 ]
-    elif k == N:
+    elif k == N: # final state
         lbw += [-100., -100.,  # com pos
                 0., 0.,  # com vel
                 0., 0.,  # com acc
@@ -180,7 +180,7 @@ for k in range(N+1):
     lbg += [-max_stride_y]
     ubg += [max_stride_y]
 
-    J = J + 10*sumsqr((Lk[1] - Rk[1]) - min_stride_y)
+    J = J + 1000.*sumsqr((Lk[1] - Rk[1]) - min_stride_y)
 
 
     l_lu, l_ru, l_rh, l_lh = getWeightedEdges(Xk[10:14], Lk, length_foot, width_foot)
@@ -208,7 +208,7 @@ for k in range(N+1):
 
     #elif k > 20 and k <= 50:
     else:
-        J += 10000 * mtimes((ZMP - [0.5, 0.5]).T, (ZMP - [0.5, 0.5]))
+        #J += 10000 * mtimes((ZMP - [0.5, 0.5]).T, (ZMP - [0.5, 0.5]))
 
         if k <= 30: #single stance
             for i in range(2):
@@ -248,59 +248,6 @@ for k in range(N+1):
                 g += [Rk - Rk_prev]
                 lbg += [0., 0.]
                 ubg += [0., 0.]
-
-    # elif k > 50 and k <= 80:
-    #     J += 100 * mtimes((ZMP - [1., -0.5]).T, (ZMP - [1., -0.5]))
-    #
-    #     for i in range(2):
-    #         g += [ZMP[i] - (r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-    #         lbg += [0]
-    #         ubg += [0]
-    #
-    #     g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
-    #     lbg += [0.]
-    #     ubg += [0.]
-    #     g += [Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-    #     lbg += [1.]
-    #     ubg += [1.]
-    #
-    #     if k > 0:
-    #         Lk_prev = XInt[k - 1][1]
-    #         Rk_prev = XInt[k - 1][2]
-    #         g += [Rk - Rk_prev]
-    #         lbg += [0., 0.]
-    #         ubg += [0., 0.]
-    #
-    # elif k > 80:
-    #     J += 100 * mtimes((ZMP - [1., -0.5]).T, (ZMP - [1., -0.5]))
-    #
-    #     for i in range(2):
-    #         g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i])]
-    #         lbg += [0]
-    #         ubg += [0]
-    #     for i in range(2):
-    #         g += [ZMP[i] - (r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-    #         lbg += [0]
-    #         ubg += [0]
-    #
-    #     g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
-    #     lbg += [1.]
-    #     ubg += [1.]
-    #     g += [Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-    #     lbg += [1.]
-    #     ubg += [1.]
-    #
-    #     if k > 0:
-    #         Lk_prev = XInt[k - 1][1]
-    #         Rk_prev = XInt[k - 1][2]
-    #         g += [Lk - Lk_prev]
-    #         lbg += [0., 0.]
-    #         ubg += [0., 0.]
-    #
-    #         g += [Rk - Rk_prev]
-    #         lbg += [0., 0.]
-    #         ubg += [0., 0.]
-
 
 
     # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
