@@ -11,6 +11,30 @@ def getWeightedEdges(alpha_vec, p, length_foot, width_foot):
     return lu, ru, rh, lh
 
 
+def casadi_sum(self, axis=None, out=None):
+    assert out is None
+    if axis==0:
+        return sum1(self)
+    elif axis==1:
+        return sum2(self)
+    elif axis is None:
+        return sum1(sum2(self))
+    else:
+        raise Exception("Invalid argument for sum")
+
+def getEdges(p, length_foot, width_foot): # lu, ru, rh, lh
+
+    lu = DM([+ length_foot / 2., + width_foot / 2.])
+    ru = DM([+ length_foot / 2., - width_foot / 2.])
+    rh = DM([- length_foot / 2., - width_foot / 2.])
+    lh = DM([- length_foot / 2., + width_foot / 2.])
+
+    # ft_list = [p + lu, p + ru, p + rh, p + lh]
+    ft_vert = horzcat(p + lu, p + ru, p + rh, p + lh).T
+
+    return ft_vert
+
+
 N = 50 # number of control intervals
 T = 1.0 # time horizon
 
@@ -24,23 +48,22 @@ min_stride_y = width_foot / 2. + 0.15
 grav = 9.81
 h = 1.
 
+sym_c = MX
 # state variables
-p = MX.sym('p', 2) # com position
-v = MX.sym('v', 2) # com velocity
-a = MX.sym('a', 2) # com acceleration
+p = sym_c.sym('p', 2) # com position
+v = sym_c.sym('v', 2) # com velocity
+a = sym_c.sym('a', 2) # com acceleration
 
-l = MX.sym('l', 2) # left foot
-r = MX.sym('r', 2) # right foot
+l = sym_c.sym('l', 2) # left foot
+r = sym_c.sym('r', 2) # right foot
 
-alpha_l = MX.sym('alpha_l', 4) # left foot weigths [lu, ru, rh, lh]
-alpha_r = MX.sym('alpha_r', 4) # right foot weigths [lu, ru, rh, lh]
+alpha_l = sym_c.sym('alpha_l', 4) # left foot weigths [lu, ru, rh, lh]
+alpha_r = sym_c.sym('alpha_r', 4) # right foot weigths [lu, ru, rh, lh]
 
 x = vertcat(p, v, a) #, l, r, alpha_l, alpha_r) # state
 
-
-
 # control variables
-j = MX.sym('j', 2) # com jerk
+j = sym_c.sym('j', 2) # com jerk
 u = j # control
 
 # model equation
@@ -54,8 +77,8 @@ M = 1 # RK4 steps per interval
 DT = T / N / M
 f = Function('f', [x, u], [xdot, L])
 
-X0 = MX.sym('X0', x.size()[0])
-U = MX.sym('U', u.size()[0])
+X0 = sym_c.sym('X0', x.size()[0])
+U = sym_c.sym('U', u.size()[0])
 X = X0
 Q = 0
 for j in range(M):
@@ -74,7 +97,7 @@ w=[] # optimization variables along all the knots
 w0 = [] # initial value for optimization variables
 lbw = [] # lower bound on variables
 ubw = [] # upper bound on variables
-J = 0 # const funciton
+J = 0 # const function
 g=[] # constraints
 lbg = [] # lower constraint
 ubg = [] # upper constraints
@@ -84,11 +107,11 @@ XInt = []
 # main loop
 for k in range(N+1):
     # STATE
-    Xk = MX.sym('X_' + str(k), z.size()[0])
+    Xk = sym_c.sym('X_' + str(k), z.size()[0])
     w += [Xk]
     if k == 0: # at the beginning, position, velocity and acceleration to ZERO
         lbw += [0., 0.,  # com pos
-                .5, .0,  # com vel
+                -.5, .0,  # com vel
                 0., 0.,  # com acc
                 0., 0.1,  # left foot pos
                 0., -0.1,  # left foot pos
@@ -96,7 +119,7 @@ for k in range(N+1):
                 0., 0., 0., 0.  # alpha r
                 ]
         ubw += [0., 0.,  # com pos
-                .5, .0,  # com vel
+                -.5, .0,  # com vel
                 0., 0.,  # com acc
                 0., 0.1,  # left foot pos
                 0., -0.1,  # left foot pos
@@ -149,7 +172,7 @@ for k in range(N+1):
 
     if k < N:
         # CONTROL
-        Uk = MX.sym('U_' + str(k), u.size()[0])
+        Uk = sym_c.sym('U_' + str(k), u.size()[0])
         w += [Uk]
 
         lbw += [-1000., -1000.]
@@ -182,15 +205,15 @@ for k in range(N+1):
 
     J = J + 1000.*sumsqr((Lk[1] - Rk[1]) - min_stride_y)
 
+    # get weighted edges
+    wft_l_vert = Xk[10:14] * getEdges(Lk, length_foot, width_foot)  # lu, ru, rh, lh
+    wft_r_vert = Xk[14:18] * getEdges(Rk, length_foot, width_foot)  # lu, ru, rh, lh
 
-    l_lu, l_ru, l_rh, l_lh = getWeightedEdges(Xk[10:14], Lk, length_foot, width_foot)
-    r_lu, r_ru, r_rh, r_lh = getWeightedEdges(Xk[14:18], Rk, length_foot, width_foot)
     if k <= 20: #double stance
         # ZMP in support polygon
-        for i in range(2):
-            g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i] + r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-            lbg += [0]
-            ubg += [0]
+        g += [ZMP - (casadi_sum(wft_l_vert, 0).T + casadi_sum(wft_r_vert, 0).T)]
+        lbg += [0, 0]
+        ubg += [0, 0]
 
         g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
         lbg += [1.]
@@ -211,10 +234,9 @@ for k in range(N+1):
         #J += 10000 * mtimes((ZMP - [0.5, 0.5]).T, (ZMP - [0.5, 0.5]))
 
         if k <= 30: #single stance
-            for i in range(2):
-                g += [ZMP[i] - (r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-                lbg += [0]
-                ubg += [0]
+            g += [ZMP - casadi_sum(wft_r_vert, 0).T]
+            lbg += [0, 0]
+            ubg += [0, 0]
 
             g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
             lbg += [0.]
@@ -230,10 +252,9 @@ for k in range(N+1):
 
         else: #double stance
             # ZMP in support polygon
-            for i in range(2):
-                g += [ZMP[i] - (l_lu[i] + l_ru[i] + l_rh[i] + l_lh[i] + r_lu[i] + r_ru[i] + r_rh[i] + r_lh[i])]
-                lbg += [0]
-                ubg += [0]
+            g += [ZMP - (casadi_sum(wft_l_vert, 0).T + casadi_sum(wft_r_vert, 0).T)]
+            lbg += [0, 0]
+            ubg += [0, 0]
 
             g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
             lbg += [1.]
