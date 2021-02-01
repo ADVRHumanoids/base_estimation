@@ -48,6 +48,8 @@ xbotcore_plugins:
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
             filter_damping: {type: double, value: 1.}
             filter_omega: {type: double, value: 100.}
+            in_contact_ths: {type: double, value: 100.}
+            not_in_contact_ths: {type: double, value: 50.}
 
 
     inverse_dynamics:

@@ -102,6 +102,14 @@ bool BaseEstimationPlugin::on_initialize()
 
     // get contact properties
     auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
+    for(auto foot_prefix : feet_prefix) //We assume all contacts enabled at initialization
+    {
+        _contacts_state[foot_prefix] = true;
+    }
+
+    _in_contact_ths = getParamOr("~in_contact_ths", 0.);
+    _not_in_contact_ths = getParamOr("~not_in_contact_ths", 0.);
+
     auto ft_frames   = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
     if(feet_prefix.size() != ft_frames.size())
     {
@@ -114,6 +122,7 @@ bool BaseEstimationPlugin::on_initialize()
         std::string ft_name = ft_frames[i];
 
         auto ft = _robot->getForceTorque().at(ft_name);
+        _ft_map[feet_prefix[i]] = ft;
 
         auto vertices = footFrames(feet_prefix[i]);
 
@@ -186,6 +195,31 @@ void BaseEstimationPlugin::run()
     /* Update robot */
     _robot->sense(false);
     _model->syncFrom(*_robot);
+
+    /* Update contact state*/
+    if(_ft_map.size() > 0)
+    {
+        for(auto ft : _ft_map)
+        {
+            Eigen::Vector6d wrench;
+            ft.second->getWrench(wrench);
+            if(wrench[2] >= _in_contact_ths) //in contact
+            {
+                if(!_contacts_state.at(ft.first))
+                {
+                    _contacts_state.at(ft.first) = true;
+                    //HERE WE SHOULD ALSO RESET ALL THE TASKS ASSOCIATED TO THIS FOOT
+                }
+            }
+            else if(wrench[2] <= _not_in_contact_ths) //not in contact
+            {
+                if(_contacts_state.at(ft.first))
+                {
+                    _contacts_state.at(ft.first) = false;
+                }
+            }
+        }
+    }
 
     /* Update estimate */
     Eigen::Affine3d base_pose;

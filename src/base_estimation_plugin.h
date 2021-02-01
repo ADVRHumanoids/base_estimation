@@ -28,9 +28,16 @@ public:
 private:
 
     typedef std::pair<Eigen::VectorXd, Eigen::VectorXd> ModelState;
+    typedef std::map<std::string,bool> ContactsState; //if true contact enabled
 
     void publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v);
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
+
+    /**
+     * @brief footFrames get frames associated to a foot
+     * @param foot_prefix prefix of a foot
+     * @return vector of frames associated to a foot_prefix
+     */
     std::vector<std::string> footFrames(const std::string& foot_prefix);
 
     ModelInterface::Ptr _model;
@@ -47,6 +54,10 @@ private:
     ModelState _model_state_msg;
 
     MatLogger2::Ptr _logger;
+
+    ContactsState _contacts_state;
+    double _in_contact_ths, _not_in_contact_ths;
+    std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
 
 };
 
