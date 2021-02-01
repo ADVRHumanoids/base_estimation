@@ -3,19 +3,11 @@
 from casadi import *
 from numpy import *
 
-def getWeightedEdges(alpha_vec, p, length_foot, width_foot):
-    lu = [alpha_vec[0] * (p[0] + length_foot / 2.), alpha_vec[0] * (p[1] + width_foot / 2.)]
-    ru = [alpha_vec[1] * (p[0] + length_foot / 2.), alpha_vec[1] * (p[1] - width_foot / 2.)]
-    rh = [alpha_vec[2] * (p[0] - length_foot / 2.), alpha_vec[2] * (p[1] - width_foot / 2.)]
-    lh = [alpha_vec[3] * (p[0] - length_foot / 2.), alpha_vec[3] * (p[1] + width_foot / 2.)]
-    return lu, ru, rh, lh
-
-
 def casadi_sum(self, axis=None, out=None):
     assert out is None
-    if axis==0:
+    if axis== 0:
         return sum1(self)
-    elif axis==1:
+    elif axis== 1:
         return sum2(self)
     elif axis is None:
         return sum1(sum2(self))
@@ -29,10 +21,88 @@ def getEdges(p, length_foot, width_foot): # lu, ru, rh, lh
     rh = DM([- length_foot / 2., - width_foot / 2.])
     lh = DM([- length_foot / 2., + width_foot / 2.])
 
-    # ft_list = [p + lu, p + ru, p + rh, p + lh]
     ft_vert = horzcat(p + lu, p + ru, p + rh, p + lh).T
 
     return ft_vert
+
+"""RK4 Runge-Kutta 4 integrator
+Input:  
+    L: objective fuction to integrate
+    M: RK steps
+    T: final time
+    N: numbr of shooting nodes:
+    x: state varibales
+    u: controls
+"""
+def RK4(L, M, T, N, x, u):
+    DT = T / N / M
+    f = Function('f', [x, u], [xdot, L])
+    X0 = sym_c.sym('X0', x.size()[0])
+    U = sym_c.sym('U', u.size()[0])
+    X = X0
+    Q = 0
+
+    for j in range(M):
+        k1, k1_q = f(X, U)
+        k2, k2_q = f(X + DT / 2 * k1, U)
+        k3, k3_q = f(X + DT / 2 * k2, U)
+        k4, k4_q = f(X + DT * k3, U)
+        X = X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        Q = Q + DT / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)
+    return Function('F', [X0, U], [X, Q], ['x0', 'p'], ['xf', 'qf'])
+
+def addConstraint(g, lbg, ubg, Gk, LBGk, UBGk):
+    g += [Gk]
+    lbg += LBGk
+    ubg += UBGk
+    return g, lbg, ubg
+
+def addStance(g, lbg, ubg, ZMP, wft_r_vert, wft_l_vert, Xk, Lk, Rk, k, stance):
+    if stance == 'L':
+        g, lbg, ubg = addConstraint(g, lbg, ubg, ZMP - casadi_sum(wft_r_vert, 0).T, [0, 0], [0, 0])
+
+        g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[10:14], 0).T, [0], [0])
+        g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[14:18], 0).T, [1.], [1.])
+
+        Rk_prev = XInt[k - 1][2]
+        g, lbg, ubg = addConstraint(g, lbg, ubg, Rk - Rk_prev, [0, 0], [0, 0])
+
+        return g, lbg, ubg
+
+    # g, lbg, ubg = addConstraint(g, lbg, ubg, ZMP - casadi_sum(wft_r_vert, 0).T, [0, 0], [0, 0])
+    #
+    # g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[10:14], 0).T, [0], [0])
+    # g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[14:18], 0).T, [1.], [1.])
+    #
+    # Rk_prev = XInt[k - 1][2]
+    # g, lbg, ubg = addConstraint(g, lbg, ubg, Rk-Rk_prev, [0,0], [0,0])
+
+    elif stance == 'R':
+        g, lbg, ubg = addConstraint(g, lbg, ubg, ZMP - casadi_sum(wft_l_vert, 0).T, [0, 0], [0, 0])
+
+        g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[10:14], 0).T, [1.], [1.])
+        g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[14:18], 0).T, [0.], [0.])
+
+        Lk_prev = XInt[k - 1][1]
+        g, lbg, ubg = addConstraint(g, lbg, ubg, Lk - Lk_prev, [0, 0], [0, 0])
+
+        return g, lbg, ubg
+
+    elif stance == 'D':
+
+        g, lbg, ubg = addConstraint(g, lbg, ubg, ZMP - (casadi_sum(wft_l_vert, 0).T + casadi_sum(wft_r_vert, 0).T), [0, 0], [0, 0])
+        g, lbg, ubg = addConstraint(g, lbg, ubg, casadi_sum(Xk[10:18], 0), [1.], [1.])
+
+        if k > 0:
+            Lk_prev = XInt[k - 1][1]
+            Rk_prev = XInt[k - 1][2]
+            g, lbg, ubg = addConstraint(g, lbg, ubg, Lk - Lk_prev, [0, 0], [0, 0])
+            g, lbg, ubg = addConstraint(g, lbg, ubg, Rk - Rk_prev, [0, 0], [0, 0])
+
+        return g, lbg, ubg
+
+
+#######################################
 
 
 N = 50 # number of control intervals
@@ -74,21 +144,7 @@ L = sumsqr(u)
 # Formulate discrete time dynamics
 # Fixed step Runge-Kutta 4 integrator
 M = 1 # RK4 steps per interval
-DT = T / N / M
-f = Function('f', [x, u], [xdot, L])
-
-X0 = sym_c.sym('X0', x.size()[0])
-U = sym_c.sym('U', u.size()[0])
-X = X0
-Q = 0
-for j in range(M):
-   k1, k1_q = f(X, U)
-   k2, k2_q = f(X + DT/2 * k1, U)
-   k3, k3_q = f(X + DT/2 * k2, U)
-   k4, k4_q = f(X + DT * k3, U)
-   X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
-   Q = Q + DT/6*(k1_q + 2*k2_q + 2*k3_q + k4_q)
-F = Function('F', [X0, U], [X, Q],['x0','p'],['xf','qf'])
+F = RK4(L, M, T, N, x, u)
 
 z = vertcat(p, v, a, l, r, alpha_l, alpha_r) # state
 
@@ -103,7 +159,6 @@ lbg = [] # lower constraint
 ubg = [] # upper constraints
 
 XInt = []
-
 # main loop
 for k in range(N+1):
     # STATE
@@ -195,13 +250,7 @@ for k in range(N+1):
     Lk = Xk[6:8]
     Rk = Xk[8:10]
 
-
-    g += [Lk[0] - Rk[0]]
-    lbg += [-max_stride_x]
-    ubg += [max_stride_x]
-    g += [Lk[1] - Rk[1]]
-    lbg += [-max_stride_y]
-    ubg += [max_stride_y]
+    g, lbg, ubg = addConstraint(g, lbg, ubg, Lk - Rk, [-max_stride_x, -max_stride_y], [max_stride_x, max_stride_y])
 
     J = J + 1000.*sumsqr((Lk[1] - Rk[1]) - min_stride_y)
 
@@ -210,65 +259,16 @@ for k in range(N+1):
     wft_r_vert = Xk[14:18] * getEdges(Rk, length_foot, width_foot)  # lu, ru, rh, lh
 
     if k <= 20: #double stance
-        # ZMP in support polygon
-        g += [ZMP - (casadi_sum(wft_l_vert, 0).T + casadi_sum(wft_r_vert, 0).T)]
-        lbg += [0, 0]
-        ubg += [0, 0]
+        g, lbg, ubg = addStance(g, lbg, ubg, ZMP, wft_r_vert, wft_l_vert, Xk, Lk, Rk, k, 'D')
 
-        g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-        lbg += [1.]
-        ubg += [1.]
-
-        if k > 0:
-            Lk_prev = XInt[k - 1][1]
-            Rk_prev = XInt[k - 1][2]
-            g += [Lk - Lk_prev]
-            lbg += [0., 0.]
-            ubg += [0., 0.]
-            g += [Rk - Rk_prev]
-            lbg += [0., 0.]
-            ubg += [0., 0.]
-
-    #elif k > 20 and k <= 50:
     else:
-        #J += 10000 * mtimes((ZMP - [0.5, 0.5]).T, (ZMP - [0.5, 0.5]))
 
         if k <= 30: #single stance
-            g += [ZMP - casadi_sum(wft_r_vert, 0).T]
-            lbg += [0, 0]
-            ubg += [0, 0]
+            g, lbg, ubg = addStance(g, lbg, ubg, ZMP, wft_r_vert, wft_l_vert, Xk, Lk, Rk, k, 'L')
 
-            g += [Xk[10] + Xk[11] + Xk[12] + Xk[13]]
-            lbg += [0.]
-            ubg += [0.]
-            g += [Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-            lbg += [1.]
-            ubg += [1.]
-
-            Rk_prev = XInt[k - 1][2]
-            g += [Rk - Rk_prev]
-            lbg += [0., 0.]
-            ubg += [0., 0.]
 
         else: #double stance
-            # ZMP in support polygon
-            g += [ZMP - (casadi_sum(wft_l_vert, 0).T + casadi_sum(wft_r_vert, 0).T)]
-            lbg += [0, 0]
-            ubg += [0, 0]
-
-            g += [Xk[10] + Xk[11] + Xk[12] + Xk[13] + Xk[14] + Xk[15] + Xk[16] + Xk[17]]
-            lbg += [1.]
-            ubg += [1.]
-
-            if k > 0:
-                Lk_prev = XInt[k - 1][1]
-                Rk_prev = XInt[k - 1][2]
-                g += [Lk - Lk_prev]
-                lbg += [0., 0.]
-                ubg += [0., 0.]
-                g += [Rk - Rk_prev]
-                lbg += [0., 0.]
-                ubg += [0., 0.]
+            g, lbg, ubg = addStance(g, lbg, ubg, ZMP, wft_r_vert, wft_l_vert, Xk, Lk, Rk, k, 'D')
 
 
     # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
@@ -276,9 +276,6 @@ for k in range(N+1):
         g += [XInt[k-1][0] - Xk[0:6]]
         lbg += list(np.zeros(x.size()[0]))
         ubg += list(np.zeros(x.size()[0]))
-
-
-
 
 
 # Create an NLP solver
