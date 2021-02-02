@@ -4,6 +4,7 @@ from casadi import *
 from numpy import *
 
 import matplotlib.pyplot as plt
+
 class Stepper:
 
     def __init__(self):
@@ -43,11 +44,11 @@ class Stepper:
         self.xdot = vertcat(self.v, self.a, self.j)
 
         # Objective terms
-        self.L = sumsqr(self.u)
+        L = sumsqr(self.u)
         # Formulate discrete time dynamics
         # Fixed step Runge-Kutta 4 integrator
         M = 1  # RK4 steps per interval
-        self.F = self.RK4(M)
+        self.F = self.RK4(M, L)
 
         # augment state
         self.z = vertcat(self.p, self.v, self.a, self.l, self.r, self.alpha_l, self.alpha_r)  # state
@@ -64,7 +65,7 @@ class Stepper:
 
         self.XInt = []
 
-    def RK4(self, M):
+    def RK4(self, M, L):
         """RK4 Runge-Kutta 4 integrator
         Input:
             L: objective fuction to integrate
@@ -76,7 +77,7 @@ class Stepper:
         """
 
         DT = self.T / self.N / M
-        f = Function('f', [self.x, self.u], [self.xdot, self.L])
+        f = Function('f', [self.x, self.u], [self.xdot, L])
         X0 = self.sym_c.sym('X0', self.x.size()[0])
         U = self.sym_c.sym('U', self.u.size()[0])
         X = X0
@@ -119,7 +120,7 @@ class Stepper:
         self.lbg += LBGk
         self.ubg += UBGk
 
-    def addStance(self, zmp, wft_l_vert, wft_r_vert, k, stance, Xk):
+    def addStance(self, zmp, wft_l_vert, wft_r_vert, k, stance, X):
 
         if stance == 'L':
             # swing leg L -->
@@ -127,13 +128,12 @@ class Stepper:
             self.addConstraint(zmp - self.casadi_sum(wft_r_vert, 0).T, [0, 0], [0, 0])
 
             # alpha (weights on vertices) must be 0 for the swing leg and 1 for the stance leg
-            self.addConstraint(self.casadi_sum(Xk[10:14], 0).T, [0], [0])
-            self.addConstraint(self.casadi_sum(Xk[14:18], 0).T, [1.], [1.])
+            self.addConstraint(self.casadi_sum(X[k][10:14], 0).T, [0], [0])
+            self.addConstraint(self.casadi_sum(X[k][14:18], 0).T, [1.], [1.])
 
             # right foot must stay still
             if k > 0:
-                Rk_prev = self.XInt[k - 1][2]
-                self.addConstraint(Xk[8:10] - Rk_prev, [0, 0], [0, 0])
+                self.addConstraint(X[k][8:10] - X[k-1][8:10], [0, 0], [0, 0])
 
         elif stance == 'R':
             # swing leg R -->
@@ -141,39 +141,40 @@ class Stepper:
             self.addConstraint(zmp - self.casadi_sum(wft_l_vert, 0).T, [0, 0], [0, 0])
 
             # alpha (weights on vertices) must be 0 for the swing leg and 1 for the stance leg
-            self.addConstraint(self.casadi_sum(Xk[10:14], 0).T, [1.], [1.])
-            self.addConstraint(self.casadi_sum(Xk[14:18], 0).T, [0.], [0.])
+            self.addConstraint(self.casadi_sum(X[k][10:14], 0).T, [1.], [1.])
+            self.addConstraint(self.casadi_sum(X[k][14:18], 0).T, [0.], [0.])
 
             # left foot must stay still
             if k > 0:
-                Lk_prev = self.XInt[k - 1][1]
-                self.addConstraint(Xk[6:8] - Lk_prev, [0, 0], [0, 0])
+                self.addConstraint(X[k][6:8] - X[k-1][6:8], [0, 0], [0, 0])
 
         elif stance == 'D':
             # double stance -->
             # zmp must stay inside sole L and R
             self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0], [0, 0])
             # alpha (weights on vertices) must be 1 for stance leg + swing leg
-            self.addConstraint(self.casadi_sum(Xk[10:18], 0), [1.], [1.])
+            self.addConstraint(self.casadi_sum(X[k][10:18], 0), [1.], [1.])
 
             # left foot AND right foot must stay still
             if k > 0:
-                Lk_prev = self.XInt[k - 1][1]
-                Rk_prev = self.XInt[k - 1][2]
-                self.addConstraint(Xk[6:8] - Lk_prev, [0, 0], [0, 0])
-                self.addConstraint(Xk[8:10] - Rk_prev, [0, 0], [0, 0])
+                self.addConstraint(X[k][6:8] - X[k-1][6:8], [0, 0], [0, 0])
+                self.addConstraint(X[k][8:10] - X[k-1][8:10], [0, 0], [0, 0])
 
 #######################################
 
-    def generateProblem(self):
-    # main loop
+    def generateProblem(self, initial_com_vel):
+
+        X = list()
+        U = list()
+
         for k in range(self.N+1):
             # STATE
-            Xk = self.sym_c.sym('X_' + str(k), self.z.size()[0])
-            self.w += [Xk]
-            if k == 0: # at the beginning, position, velocity and acceleration to ZERO
+            xk = self.sym_c.sym('X_' + str(k), self.z.size()[0])
+            X.append(xk)
+
+            if k == 0:  # at the beginning, position, velocity and acceleration to ZERO
                 self.lbw += [0., 0.,  # com pos
-                            -.5, .0,  # com vel
+                            initial_com_vel[0], initial_com_vel[1],  # com vel
                             0., 0.,  # com acc
                             0., 0.1,  # left foot pos
                             0., -0.1,  # left foot pos
@@ -181,13 +182,14 @@ class Stepper:
                             0., 0., 0., 0.  # alpha r
                             ]
                 self.ubw += [0., 0.,  # com pos
-                            -.5, .0,  # com vel
+                            initial_com_vel[0], initial_com_vel[1],  # com vel
                             0., 0.,  # com acc
                             0., 0.1,  # left foot pos
                             0., -0.1,  # left foot pos
                             1., 1., 1., 1.,  # alpha l
                             1., 1., 1., 1.  # alpha r
                             ]
+
             elif k == self.N: # final state
                 self.lbw += [-100., -100.,  # com pos
                             0., 0.,  # com vel
@@ -196,8 +198,6 @@ class Stepper:
                             -100., -100.,  # right foot pos
                             0., 0., 0., 0.,
                             0., 0., 0., 0.,
-                            #0.25, 0.25, 0.25, 0.25,  # alpha l
-                            #0.25, 0.25, 0.25, 0.25  # alpha r
                             ]
                 self.ubw += [100., 100.,  # com pos
                             0., 0.,  # com vel
@@ -206,8 +206,6 @@ class Stepper:
                             100., 100.,  # right foot pos
                             1., 1., 1., 1.,
                             1., 1., 1., 1.,
-                            # 0.25, 0.25, 0.25, 0.25,  # alpha l
-                            # 0.25, 0.25, 0.25, 0.25  # alpha r
                             ]
             else:
                 self.lbw += [-100., -100., # com pos
@@ -227,66 +225,73 @@ class Stepper:
                             1., 1., 1., 1.  # alpha r
                             ]
 
+            # initial guess for state
             self.w0 += list(np.zeros(self.z.size()[0]))
 
+            # CONTROL (last loop does not have u)
             if k < self.N:
-                # CONTROL
-                Uk = self.sym_c.sym('U_' + str(k), self.u.size()[0])
-                self.w += [Uk]
+                uk = self.sym_c.sym('U_' + str(k), self.u.size()[0])
+                U.append(uk)
+
+                # minimize input
+                self.J = self.J + sumsqr(U[k])
 
                 self.lbw += [-1000., -1000.]
                 self.ubw += [1000., 1000.]
 
+                # initial guess for control
                 self.w0 += list(np.zeros(self.u.size()[0]))
 
-                # Integrator
-                Fk = self.F(x0=Xk[0:6], p=Uk)
-                self.XInt.append([Fk['xf'], Xk[6:8], Xk[8:10]])
-                self.J = self.J + mtimes(Fk['qf'].T, Fk['qf'])
+            if k > 0:
+                # forward integration
+                Fk = self.F(x0=X[k-1][0:6], p=U[k-1])
+                # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
+                self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])), list(np.zeros(self.x.size()[0])))
 
-                # Regularization of alphas
-                Ak = Xk[10:18]
-                self.J = self.J + mtimes(Ak.T, Ak)
+            self.J = self.J + sumsqr(X[k][0:6])
 
+            # Regularization of alphas
+            Ak = X[k][10:18]
+            self.J = self.J + sumsqr(Ak)
 
             #WALKING SCHEDULER
-            ZMP = Xk[0:2] - Xk[4:6] * (self.h / self.grav)
-            Lk = Xk[6:8]
-            Rk = Xk[8:10]
+            ZMP = X[k][0:2] - X[k][4:6] * (self.h / self.grav)
+            Lk = X[k][6:8]
+            Rk = X[k][8:10]
 
             self.addConstraint(Lk - Rk, [-self.max_stride_x, -self.max_stride_y], [self.max_stride_x, self.max_stride_y])
 
             self.J = self.J + 1000.*sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
 
             # get weighted edges
-            wft_l_vert = Xk[10:14] * self.getEdges(Lk)  # lu, ru, rh, lh
-            wft_r_vert = Xk[14:18] * self.getEdges(Rk)  # lu, ru, rh, lh
+            wft_l_vert = X[k][10:14] * self.getEdges(Lk)  # lu, ru, rh, lh
+            wft_r_vert = X[k][14:18] * self.getEdges(Rk)  # lu, ru, rh, lh
 
             if k <= 20: # add double stance
-                self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', Xk)
+                self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
             else:
-                if k <= 30: # add single stance
-                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', Xk)
-                else: # add double stance
-                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', Xk)
+                if k <= 30:  # add single stance
+                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', X)
+                else:  # add double stance
+                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
 
 
-            # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
-            if k > 0:
-                self.g += [self.XInt[k-1][0] - Xk[0:6]]
-                self.lbg += list(np.zeros(self.x.size()[0]))
-                self.ubg += list(np.zeros(self.x.size()[0]))
+        w = [None]*(len(X)+len(U))
+        w[0::2] = X
+        w[1::2] = U
 
+        prob = {'f': self.J, 'x': vertcat(*w), 'g': vertcat(*self.g)}
 
+        return prob
 
-    def solve(self):
+    def solve(self, prob):
         # Create an NLP solver
-        prob = {'f': self.J, 'x': vertcat(*self.w), 'g': vertcat(*self.g)}
         solver = nlpsol('solver', 'ipopt', prob)
-
         # Solve the NLP
+
         sol = solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.lbg, ubg=self.ubg)
-        return sol['x'].full().flatten()
+        w_opt = sol['x'].full().flatten()
+        return w_opt
 
     def plot(self, w_opt):# Plot the solution
         p_opt = []
@@ -420,8 +425,8 @@ class Stepper:
 if __name__ == '__main__':
     stp = Stepper()
 
-    stp.generateProblem()
+    problem = stp.generateProblem(initial_com_vel=[0.5, 0])
 
-    w_opt = stp.solve()
+    w_opt = stp.solve(problem)
 
     stp.plot(w_opt)
