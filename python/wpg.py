@@ -4,12 +4,38 @@ from casadi import *
 from numpy import *
 
 import matplotlib.pyplot as plt
+import pprint
 
 class Stepper:
 
-    def __init__(self):
-        self.N = 50  # number of control intervals
-        self.T = 1.0  # time horizon
+    def __init__(self, initial_ds_t, ss_t, final_ds_t):
+
+        self.initial_ds_t = initial_ds_t
+        self.ss_t = ss_t
+        self.final_ds_t = final_ds_t
+
+        self.n_duration = 0.01 # single node duration
+        self.T = self.initial_ds_t + self.ss_t + self.final_ds_t  #1.0  # time horizon
+        self.N = int(self.T / self.n_duration)  # number of control intervals
+
+
+
+        print 'initial_ds_t:', self.initial_ds_t
+        print 'ss_t:', self.ss_t
+        print 'final_ds_t:', self.final_ds_t
+        print 'n_duration:', self.n_duration
+        print 'T:', self.T
+        print 'N:', self.N
+
+        print 'node duration of initial ds:', int(self.initial_ds_t/self.n_duration)
+        print 'node duration of ss:', int(self.ss_t/self.n_duration)
+        print 'node duration of final ds:', int(self.final_ds_t/self.n_duration)
+
+        self.node_ss_begin = int(self.initial_ds_t/self.n_duration)
+        self.node_ss_end = int(self.initial_ds_t/self.n_duration) + int(self.ss_t/self.n_duration)
+
+        print 'node_ss_begin:', self.node_ss_begin
+        print 'node_ss_end:', self.node_ss_end
 
         self.width_foot = 0.1
         self.length_foot = 0.2
@@ -162,7 +188,7 @@ class Stepper:
 
 #######################################
 
-    def generateProblem(self, initial_com_vel):
+    def generateProblem(self, initial_com, l_foot, r_foot):
 
         X = list()
         U = list()
@@ -173,21 +199,21 @@ class Stepper:
             X.append(xk)
 
             if k == 0:  # at the beginning, position, velocity and acceleration to ZERO
-                self.lbw += [0., 0.,  # com pos
-                            initial_com_vel[0], initial_com_vel[1],  # com vel
-                            0., 0.,  # com acc
-                            0., 0.1,  # left foot pos
-                            0., -0.1,  # left foot pos
-                            0., 0., 0., 0.,  # alpha l
-                            0., 0., 0., 0.  # alpha r
+                self.lbw += [initial_com[0, 0], initial_com[0, 1],  # com pos
+                             initial_com[1, 0], initial_com[1, 1],  # com vel
+                             initial_com[2, 0], initial_com[2, 1],  # com acc
+                             l_foot[0], l_foot[1],  # left foot pos
+                             r_foot[0], r_foot[1],  # right foot pos
+                             0., 0., 0., 0.,  # alpha l
+                             0., 0., 0., 0.  # alpha r
                             ]
-                self.ubw += [0., 0.,  # com pos
-                            initial_com_vel[0], initial_com_vel[1],  # com vel
-                            0., 0.,  # com acc
-                            0., 0.1,  # left foot pos
-                            0., -0.1,  # left foot pos
-                            1., 1., 1., 1.,  # alpha l
-                            1., 1., 1., 1.  # alpha r
+                self.ubw += [initial_com[0, 0], initial_com[0, 1],
+                             initial_com[1, 0], initial_com[1, 1],
+                             initial_com[2, 0], initial_com[2, 1],
+                             l_foot[0], l_foot[1],  # left foot pos
+                             r_foot[0], r_foot[1],  # right foot pos
+                             1., 1., 1., 1.,  # alpha l
+                             1., 1., 1., 1.  # alpha r
                             ]
 
             elif k == self.N: # final state
@@ -267,13 +293,23 @@ class Stepper:
             wft_l_vert = X[k][10:14] * self.getEdges(Lk)  # lu, ru, rh, lh
             wft_r_vert = X[k][14:18] * self.getEdges(Rk)  # lu, ru, rh, lh
 
-            if k <= 20: # add double stance
+            initial_ds_n = int(self.initial_ds_t/self.n_duration)
+            ss_n = int(self.ss_t/self.n_duration)
+            # final_ds_n = int(self.final_ds_t/self.n_duration)
+
+            if k <= initial_ds_n:  # add INITIAL double stance
                 self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
-            else:
-                if k <= 30:  # add single stance
-                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', X)
-                else:  # add double stance
-                    self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
+            elif initial_ds_n < k < initial_ds_n + ss_n:  # add single stance
+                self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', X)
+            else:  # add double stance
+                self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
+
+            # if k <= int(self.ds_duration/self.n_duration):  # initial double stance
+            #     self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
+            # elif (k > int(self.ds_duration/self.n_duration) and k < int(self.ss_duration/self.n_duration)):
+            #     self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', X)
+            # elif (k > int(self.ss_duration/self.n_duration) and k < int(self.ds_duration/self.n_duration)):  # add double stance
+            #     self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
 
 
         w = [None]*(len(X)+len(U))
@@ -292,6 +328,24 @@ class Stepper:
         sol = solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.lbg, ubg=self.ubg)
         w_opt = sol['x'].full().flatten()
         return w_opt
+
+    def get_relevant_variables(self, w_opt):
+
+        feet_states = list()
+
+        relevant_nodes = [0, self.node_ss_end+1]
+
+        num_var = self.z.size()[0] + self.u.size()[0]
+        for k in relevant_nodes:
+            sol_k = w_opt[num_var*k:(num_var*k+num_var)]
+            feet_states.append(dict(l=sol_k[6:8], r=sol_k[8:10]))
+
+        com_states = list()
+        for k in range(self.N):
+            sol_k = w_opt[num_var*k:(num_var*k+num_var)]
+            com_states.append(dict(p=list(sol_k[0:2]), v=list(sol_k[2:4]), a=list(sol_k[4:6])))
+
+        return com_states, feet_states
 
     def plot(self, w_opt):# Plot the solution
         p_opt = []
@@ -421,12 +475,52 @@ class Stepper:
 
         plt.show()
 
+    def interpolator(self, step_i, step_f, step_height, time, freq):
+
+        traj_len = float(freq) * float(time)
+        t = np.linspace(0,1, traj_len)
+
+        traj_x = step_i[0] + (((6*t - 15)*t + 10)* t**3) * (step_f[0] - step_i[0])  # on the x
+        traj_y = step_i[1] + (((6*t - 15)*t + 10)* t**3) * (step_f[1] - step_i[1])  # on the y
+        traj_z = (64 * t**3. * (1 - t)**3) * step_height # on the z
+        return t, traj_x, traj_y, traj_z
+
+
 
 if __name__ == '__main__':
-    stp = Stepper()
 
-    problem = stp.generateProblem(initial_com_vel=[0.5, 0])
+    initial_ds = 0.5
+    ss = 0.1
+    final_ds = 0.5
+    stp = Stepper(initial_ds, ss, final_ds)
+
+    initial_l_foot = np.array([0., 0.1, 0.])
+    initial_r_foot = np.array([0., -0.1, 0.])
+    initial_com = np.array([[0., 0.], [0.5, 0.], [0., 0.]])
+
+    problem = stp.generateProblem(initial_com=initial_com, l_foot=initial_l_foot, r_foot=initial_r_foot)
 
     w_opt = stp.solve(problem)
 
-    stp.plot(w_opt)
+    com_states, feet_states = stp.get_relevant_variables(w_opt)
+
+    # stp.plot(w_opt)
+    for i in range(len(feet_states)):
+        plt.scatter(feet_states[i]['l'][0], feet_states[i]['l'][1])
+        plt.scatter(feet_states[i]['r'][0], feet_states[i]['r'][1])
+
+    plt.plot([i['p'][0] for i in com_states], [i['p'][1] for i in com_states])
+
+    t, traj_x, traj_y, traj_z = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss, freq=100)
+
+    print len(t)
+    plt.figure()
+    plt.plot(t, traj_x)
+    plt.plot(t, traj_y)
+    plt.plot(t, traj_z)
+    plt.legend(['x', 'y', 'z'])
+    plt.xlabel('t')
+    plt.show()
+
+
+
