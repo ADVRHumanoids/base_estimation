@@ -59,6 +59,7 @@ private:
     double _in_contact_ths, _not_in_contact_ths;
     std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
 
+
 };
 
 }
