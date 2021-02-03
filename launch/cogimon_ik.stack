@@ -1,0 +1,68 @@
+solver_options:
+    regularization: 1e-3
+    back_end: "qpoases"
+
+stack:
+    - ["l_sole", "r_sole", "waist", "com", "postural"]
+
+
+constraints:
+    - "JointLimits"
+    - "VelocityLimits"
+
+JointLimits:
+    type: "JointLimits"
+
+VelocityLimits:
+    type: "VelocityLimits"
+
+l_sole:
+    type: "Cartesian"
+    lambda: 0.1
+    distal_link: "l_sole"
+    weight: 100
+
+r_sole:
+    type: "Cartesian"
+    lambda: 0.1
+    distal_link: "r_sole"
+    weight: 100
+
+waist:
+    type: "Cartesian"
+    lambda: 0.1
+    distal_link: "Waist"
+    indices: [3,4,5]
+
+com:
+    type: "Com"
+    lambda: 0.12
+    weight: 10
+
+postural:
+    type: "Postural"
+    lambda: 0.1
+    weight:
+      VIRTUALJOINT_1: 0
+      VIRTUALJOINT_2: 0
+      VIRTUALJOINT_3: 0
+      VIRTUALJOINT_4: 0
+      VIRTUALJOINT_5: 0
+      VIRTUALJOINT_6: 0
+      RHipLat: 0
+      RHipSag: 0
+      RHipYaw: 0
+      RKneePitch: 0
+      RAnklePitch: 0
+      RAnkleRoll: 0
+      LHipLat: 0
+      LHipSag: 0
+      LHipYaw: 0
+      LKneePitch: 0
+      LAnklePitch: 0
+      LAnkleRoll: 0
+
+
+
+
+
