@@ -208,7 +208,11 @@ void BaseEstimationPlugin::run()
                 if(!_contacts_state.at(ft.first))
                 {
                     _contacts_state.at(ft.first) = true;
-                    //HERE WE SHOULD ALSO RESET ALL THE TASKS ASSOCIATED TO THIS FOOT
+                    std::vector<std::string> frames = footFrames(ft.first);
+                    for(auto frame : frames)
+                    {
+                        _est->reset(frame);
+                    }
                 }
             }
             else if(wrench[2] <= _not_in_contact_ths) //not in contact

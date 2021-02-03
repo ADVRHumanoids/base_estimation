@@ -51,7 +51,17 @@ public:
                 Eigen::Vector6d& vel,
                 Eigen::Vector6d& raw_vel);
 
+    /**
+     * @brief reset the whole ci
+     */
     void reset();
+
+    /**
+     * @brief reset a single task
+     * @param task_name name of the task
+     */
+    bool reset(const std::string& task_name);
+
 
     void setFilterOmega(const double omega);
     void setFilterDamping(const double eps);

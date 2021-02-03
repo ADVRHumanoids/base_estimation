@@ -157,6 +157,17 @@ void BaseEstimation::reset()
     _ci->reset(0.0);
 }
 
+bool BaseEstimation::reset(const std::string& task_name)
+{
+    auto task = _ci->getTask(task_name);
+    if(task)
+    {
+        task->reset();
+        return true;
+    }
+    return false;
+}
+
 BaseEstimation::Options::Options()
 {
     dt = 1.0;
