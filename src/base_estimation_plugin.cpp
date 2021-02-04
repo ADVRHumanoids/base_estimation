@@ -141,6 +141,7 @@ bool BaseEstimationPlugin::on_initialize()
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
     _base_raw_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/raw_twist", 1);
     _contact_viz = std::make_shared<ikbe::contact_viz>("/odometry/contacts/weights", _ros.get());
+    _contacts_state_pub = _ros->advertise<base_estimation::ContactsStatus>("/odometry/contacts/status",1);
 
     if(_gz)
     {
@@ -234,10 +235,11 @@ void BaseEstimationPlugin::run()
         jerror("unable to solve");
     }
 
-    /* Publish contact markers */
+    /* Publish contact markers in ROS */
     _contact_viz->publish(_est->getMapVertexFramesWeights());
+    publishContactStatus(_contacts_state);
 
-    /* Base state broadcast */
+    /* Base state broadcast in ROS*/
     publishToROS(base_pose, base_vel, raw_base_vel);
 
     /* Model state broadcast */
@@ -329,6 +331,24 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
         _base_twist_gz_pub->publish(Vmsg);
     }
 
+}
+
+void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_state)
+{
+    base_estimation::ContactsStatus msg;
+    ros::Time t = ros::Time::now();
+
+    base_estimation::ContactStatus cs;
+    for(auto elem : contacts_state)
+    {
+        cs.header.stamp = t;
+        cs.header.frame_id = elem.first;
+        cs.status = elem.second;
+
+        msg.contacts_status.push_back(cs);
+    }
+
+    _contacts_state_pub->publish(msg);
 }
 
 void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
