@@ -140,6 +140,7 @@ bool BaseEstimationPlugin::on_initialize()
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
     _base_raw_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/raw_twist", 1);
+    _contact_viz = std::make_shared<ikbe::contact_viz>("/odometry/contacts/weights", _ros.get());
 
     if(_gz)
     {
@@ -233,6 +234,9 @@ void BaseEstimationPlugin::run()
         jerror("unable to solve");
         return;
     }
+
+    /* Publish contact markers */
+    _contact_viz->publish(_est->getMapVertexFramesWeights());
 
     /* Base state broadcast */
     publishToROS(base_pose, base_vel, raw_base_vel);

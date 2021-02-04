@@ -12,6 +12,8 @@
 #include <xbot2/gazebo/dev_link_state_sensor.h>
 #include <matlogger2/matlogger2.h>
 
+#include <base_estimation/contact_viz.h>
+
 namespace XBot {
 
 class BaseEstimationPlugin : public ControlPlugin
@@ -59,7 +61,7 @@ private:
     double _in_contact_ths, _not_in_contact_ths;
     std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
 
-
+    std::shared_ptr<ikbe::contact_viz> _contact_viz;
 };
 
 }

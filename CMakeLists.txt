@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 14)
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
 find_package(cartesian_interface REQUIRED)
+find_package(catkin REQUIRED COMPONENTS visualization_msgs)
 
 include_directories(include/)
 
@@ -17,6 +18,7 @@ add_library(ikbe SHARED
 target_link_libraries(ikbe
     PRIVATE
     ${cartesian_interface_LIBRARIES}
+    ${catkin_LIBRARIES}
     )
 
 install(
@@ -29,7 +31,7 @@ find_package(xbot2 QUIET)
 # compile plugin
 if(${xbot2_FOUND})
 
-    add_xbot2_plugin(base_estimation src/base_estimation_plugin.cpp)
+    add_xbot2_plugin(base_estimation src/base_estimation_plugin.cpp src/contact_viz.cpp)
 
     target_link_libraries(base_estimation
         PRIVATE
