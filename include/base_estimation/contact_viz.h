@@ -15,6 +15,8 @@ public:
 
     bool publish(const std::vector<std::string>& frames, const Eigen::VectorXd& normal_forces);
 
+    bool publish(const std::map<std::vector<std::string>, Eigen::VectorXd>& map);
+
 private:
     visualization_msgs::MarkerArray _marker_array_msg;
 
