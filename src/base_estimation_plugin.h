@@ -11,6 +11,7 @@
 #include <base_estimation/base_estimation.h>
 #include <xbot2/gazebo/dev_link_state_sensor.h>
 #include <matlogger2/matlogger2.h>
+#include <base_estimation/ContactsStatus.h>
 
 #include <base_estimation/contact_viz.h>
 
@@ -33,6 +34,7 @@ private:
     typedef std::map<std::string,bool> ContactsState; //if true contact enabled
 
     void publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v);
+    void publishContactStatus(const ContactsState& contacts_state);
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
 
     /**
@@ -51,6 +53,7 @@ private:
     PublisherPtr<tf2_msgs::TFMessage> _base_tf_pub;
     PublisherPtr<geometry_msgs::PoseStamped> _base_pose_pub, _base_pose_gz_pub;
     PublisherPtr<geometry_msgs::TwistStamped> _base_twist_pub, _base_raw_twist_pub, _base_twist_gz_pub;
+    PublisherPtr<base_estimation::ContactsStatus> _contacts_state_pub;
 
     PublisherPtr<ModelState> _model_state_pub;
     ModelState _model_state_msg;

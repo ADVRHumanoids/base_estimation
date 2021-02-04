@@ -6,9 +6,20 @@ set(CMAKE_CXX_STANDARD 14)
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
 find_package(cartesian_interface REQUIRED)
-find_package(catkin REQUIRED COMPONENTS visualization_msgs)
+find_package(catkin REQUIRED COMPONENTS visualization_msgs std_msgs message_generation)
 
 include_directories(include/)
+
+add_message_files(
+    FILES
+    ContactStatus.msg
+    ContactsStatus.msg
+    )
+
+generate_messages(
+    DEPENDENCIES
+    std_msgs
+    )
 
 # compile library
 add_library(ikbe SHARED
