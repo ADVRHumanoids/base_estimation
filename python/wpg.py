@@ -271,6 +271,7 @@ class Stepper:
             if k > 0:
                 # forward integration
                 Fk = self.F(x0=X[k-1][0:6], p=U[k-1])
+
                 # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
                 self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])), list(np.zeros(self.x.size()[0])))
 
@@ -343,7 +344,7 @@ class Stepper:
         com_states = list()
         for k in range(self.N):
             sol_k = w_opt[num_var*k:(num_var*k+num_var)]
-            com_states.append(dict(p=list(sol_k[0:2]), v=list(sol_k[2:4]), a=list(sol_k[4:6])))
+            com_states.append(dict(p=list(sol_k[0:2]), v=list(sol_k[2:4]), a=list(sol_k[4:6]), j=sol_k[18:20]))
 
         return com_states, feet_states
 
@@ -497,30 +498,78 @@ if __name__ == '__main__':
     initial_l_foot = np.array([0., 0.1, 0.])
     initial_r_foot = np.array([0., -0.1, 0.])
     initial_com = np.array([[0., 0.], [0.5, 0.], [0., 0.]])
-
+    #
     problem = stp.generateProblem(initial_com=initial_com, l_foot=initial_l_foot, r_foot=initial_r_foot)
-
+    #
     w_opt = stp.solve(problem)
 
     com_states, feet_states = stp.get_relevant_variables(w_opt)
+    #
+    # # stp.plot(w_opt)
 
-    # stp.plot(w_opt)
-    for i in range(len(feet_states)):
-        plt.scatter(feet_states[i]['l'][0], feet_states[i]['l'][1])
-        plt.scatter(feet_states[i]['r'][0], feet_states[i]['r'][1])
+    # show step and com trajectories
+    # for i in range(len(feet_states)):
+    #     plt.scatter(feet_states[i]['l'][0], feet_states[i]['l'][1])
+    #     plt.scatter(feet_states[i]['r'][0], feet_states[i]['r'][1])
+    #
+    # plt.plot([i['p'][0] for i in com_states], [i['p'][1] for i in com_states])
+    #
+    # t, traj_x, traj_y, traj_z = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss, freq=100)
+    #
+    # plt.figure()
+    # plt.plot(t, traj_x)
+    # plt.plot(t, traj_y)
+    # plt.plot(t, traj_z)
+    # plt.legend(['x', 'y', 'z'])
+    # plt.xlabel('t')
+    # plt.show()
 
-    plt.plot([i['p'][0] for i in com_states], [i['p'][1] for i in com_states])
+    # interpolate with integrator
+    # dt = (stp.T / stp.N / 1) / 2
+    # integrator = stp.RK4(1, 1, dt)
 
-    t, traj_x, traj_y, traj_z = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss, freq=100)
+    # Fk_1 = stp.F(x0=initial_com.flatten(), p=com_states[0]['j'])
+    # Fk_2 = integrator(x0=initial_com.flatten(), p=com_states[0]['j'])
 
-    print len(t)
-    plt.figure()
-    plt.plot(t, traj_x)
-    plt.plot(t, traj_y)
-    plt.plot(t, traj_z)
-    plt.legend(['x', 'y', 'z'])
-    plt.xlabel('t')
+    # if I use the same integrator over the states it should give the same result as the com found by the optimal controller
+    x_state = DM(initial_com.flatten())
+    for iter_u in range(len(com_states)):
+        Fk_2 = stp.F(x0=x_state[:, -1], p=com_states[iter_u]['j'])
+        x_state = horzcat(x_state, Fk_2['xf'])
+        print x_state
+
+    print('state.shape',com_states.shape)
+    plt.plot(x_state[0, :].full().flatten(), x_state[1, :].full().flatten(), 'r',  linewidth=2)
+
+
+
+
+    #################################################################################################
+
+
+    # ## integrate 'multiplier' times for every loop
+    # # basically change the resolution of the trajectory
+    #
+    state_1 = DM(initial_com.flatten())
+
+    multiplier = 2
+    dt_int = stp.T / stp.N / 1 / multiplier
+    integrator = stp.RK4(1, 1, dt_int)
+
+    for i in range(len(com_states)):
+        for multi_i in range(multiplier):
+            Fk_1 = integrator(x0=state_1[:, -1], p=com_states[i]['j'])
+            state_1 = horzcat(state_1, Fk_1['xf'])
+
+    print('state_1.shape', state_1.shape)
+    plt.plot(state_1[0, :].full().flatten(), state_1[1, :].full().flatten(), 'k--',  linewidth=2)
+
     plt.show()
+
+
+
+
+
 
 
 
