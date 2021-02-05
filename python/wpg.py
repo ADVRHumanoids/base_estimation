@@ -327,10 +327,14 @@ class Stepper:
 
     def solve(self, prob, initial_guess, constraints):
         # Create an NLP solver
-        solver = nlpsol('solver', 'ipopt', prob)
+        solver = nlpsol('solver', 'ipopt', prob, {'ipopt': {'linear_solver': 'ma27', 'tol':1e-4, 'print_level': 0, 'sb':'yes'}, 'print_time':0}) # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
+
         # Solve the NLP
 
+        t = time.time()
         sol = solver(x0=initial_guess, lbx=constraints['lbw'], ubx=constraints['ubw'], lbg=constraints['lbg'], ubg=constraints['ubg'])
+        print('duration:', time.time() - t)
+
         w_opt = sol['x'].full().flatten()
         return w_opt
 
@@ -507,16 +511,15 @@ if __name__ == '__main__':
     #
     problem, initial_guess, constraints = stp.generateProblem(initial_com=initial_com, l_foot=initial_l_foot, r_foot=initial_r_foot)
 
-    t = time.time()
+    # problem with zero initial velocity
     w_opt = stp.solve(problem, initial_guess, constraints)
-    time1 = time.time() - t
 
-    t = time.time()
+    # problem with given velocity
+    constraints['lbw'][2] = 0.5 #change velocity constraint
+    constraints['ubw'][2] = 0.5  # change velocity constraint
+
+    # for i in range(10):
     w_opt = stp.solve(problem, w_opt, constraints)
-    time2 = time.time() - t
-
-    print "elapsed time:", time1
-    print "elapsed time again:", time2
 
 
     com_states, feet_states = stp.get_relevant_variables(w_opt)
