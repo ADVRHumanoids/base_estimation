@@ -89,7 +89,7 @@ class Problem:
 
         for k in range(self.N):
 
-            print( '---------------------- node', k, '----------------------')
+            print( '----- node', k, '-----')
             self.updateVariables(k)
 
             X.append(self.var_opt['x'])  # add state variables at every loop
@@ -98,14 +98,18 @@ class Problem:
             self.lbw += [-cs.inf] * var_opt['x'].shape[0] + [-cs.inf] * var_opt['u'].shape[0]
             self.ubw += [cs.inf] * var_opt['x'].shape[0] + [cs.inf] * var_opt['u'].shape[0]
 
-            print(' adding constraint functions:')
+            print('adding constraint functions:')
             # add new constraint with changed input
             self.ct.update(self.var_opt)
             for constraint in self.ct.g_dict:
-                if k in range(self.ct.g_dict[constraint]['nodes'][0], self.ct.g_dict[constraint]['nodes'][1]):
-                    g = self.ct.addConstraint(constraint)
-                    print(g)
+                # add constraint only if in the specified nodes
+                for chunk in self.ct.g_dict[constraint]['nodes']:
+                    if k in range(chunk[0], chunk[1]):
+                        self.ct.addConstraint(constraint)
 
+
+
+        self.__addConstraintBounds()
         w = cs.vertcat(*X, *U)
         # w = [None] * (len(X) + len(U))
         # w[0::2] = X
@@ -114,6 +118,15 @@ class Problem:
 
         return w, g
 
+    def __addConstraintBounds(self):
+
+        for constraint in self.ct.g_dict:
+            for k in list(self.ct.g_dict[constraint]['bounds']['lbg'].keys()):
+                self.ct.lbg.extend(self.ct.g_dict[constraint]['bounds']['lbg'][k])
+
+            for k in list(self.ct.g_dict[constraint]['bounds']['ubg'].keys()):
+                self.ct.ubg.extend(self.ct.g_dict[constraint]['bounds']['ubg'][k])
+
     def solveProblem(self, w, g):
 
         w0 = list()
@@ -121,8 +134,10 @@ class Problem:
 
 
         # print('w:', w)
-        # print('g:', g)
+        print('g:', g)
 
+        print(self.ct.lbg)
+        print(self.ct.ubg)
         J = 1
 
         prob = {'f': J, 'x': w, 'g': g}
@@ -163,21 +178,72 @@ class Constraint:
 
         self.g_dict = dict()
 
-    def setConstraintFunction(self, name, g, nodes=[]):
+    def setConstraintFunction(self, name, g, nodes=None, bounds=None):
+
+        # TODO should be a list of lists, since there may be more than one interval with same constraint
         if not nodes:
             nodes = [0, prb.N]
 
-        f = cs.Function(name, list(self.var_opt.values()), [g])
-        self.g_dict[name] = dict(constraint=f, nodes=nodes)
+        if not any(isinstance(el, list) for el in nodes):
+            nodes = [nodes]
+
+        if not bounds:
+            bounds = dict()
+            bounds['nodes'] = nodes
+            bounds['lbg'] = [-cs.inf] * g.shape[0]
+            bounds['ubg'] = [cs.inf] * g.shape[0]
+
+        if not any(isinstance(el, list) for el in bounds['nodes']):
+            bounds['nodes'] = [bounds['nodes']]
+
+        if 'lbg' not in bounds:
+            bounds['lbg'] = [-cs.inf] * g.shape[0]
+
+        if 'ubg' not in bounds:
+            bounds['ubg'] = [cs.inf] * g.shape[0]
+
+        if len(bounds['lbg']) != g.shape[0]:
+            raise Exception('Dimension of lower bounds (', len(bounds['lbg']), ') '
+                            'does not coincide with the constraint dimension (', g.shape[0], ')')
+        if len(bounds['ubg']) != g.shape[0]:
+            raise Exception('Dimension of upper bounds (', len(bounds['ubg']), ') '
+                            'does not coincide with the constraint dimension (', g.shape[0], ')')
+
+        lbg = dict()
+        ubg = dict()
+
+        for chunk in nodes:
+            lbg.update((elem,[-cs.inf] * g.shape[0]) for elem in list(range(chunk[0], chunk[1]))) #dict(lbg=[-cs.inf] * g.shape[0], ubg=[cs.inf] * g.shape[0])
+            ubg.update((elem,[cs.inf] * g.shape[0]) for elem in list(range(chunk[0], chunk[1])))
+
+        for chunk in bounds['nodes']:
+            for i in range(chunk[0], chunk[1]):
+                if i < prb.N: # check if bounds['nodes'] are inside problem nodes
+                    lbg[i] = bounds['lbg']
+                    ubg[i] = bounds['ubg']
+
+        used_var = dict()
+        # select from all variables only the variables used by the added constrain function
+        for name_var, var in list(self.var_opt.items()):
+            if cs.depends_on(g, var):
+                used_var[name_var] = var
+                # check if variable exists in the full range of nodes
+                if name_var.find('-') != -1: # TODO add chunk stuff to nodes[0]
+                    if nodes[0] - int(name_var[name_var.index('-') + len('-'):]) < 0:
+                        raise Exception('Failed to add constraint: variable', name_var, 'can only be added from node n:', int(name_var[name_var.index('-') + len('-'):]))
+
+        # create function and add it to dictionary of constraint function
+        f = cs.Function(name, list(used_var.values()), [g])
+        self.g_dict[name] = dict(constraint=f, bounds=dict(lbg=lbg, ubg=ubg), nodes=nodes, var=list(used_var.keys()))
 
         return f
 
     def addConstraint(self, name):
-        f = self.g_dict[name]['constraint']
-        g = f(*list(self.var_opt.values()))
-        self.g.append(g)
 
-        return g
+        f = self.g_dict[name]['constraint']
+        g = f(*[self.var_opt[x] for x in self.g_dict[name]['var']])
+        print(g)
+        self.g.append(g)
 
     def setConstraintBounds(self, lbg, ubg, nodes):
         self.lbg[nodes[0]:nodes[1]] = [lbg] * (nodes[1] - nodes[0])
@@ -214,29 +280,32 @@ if __name__ == '__main__':
 
     var_opt = prb.getVariable()
 
+    # print(var_opt)
+    # exit()
     zmp_old = var_opt['x-2'][0:2] - var_opt['x-2'][4:6]  # * (h / grav)
     zmp = var_opt['x'][0:2] - var_opt['x'][4:6]  # * (h / grav)
 
     prb.setFunction('zmp', zmp)
     prb.setFunction('zmp_old', zmp_old)
 
-    # print(zmp_old)
-    # print(zmp)
     # exit()
     # Fk = integrator(x0=var_opt['x-1'][0:6], p=var_opt['u-1'])
 
     fun_opt = prb.getFunction()
 
+    # print(fun_opt)
+    # exit()
     # if k > 0:
     # forward integration
     ## Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
     # prb.ct.addConstraint('multiple_shooting', Fk['xf'] - var_opt['x'][0:6])
     # define template constraint function
-    prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6])
+    prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6], bounds=dict(nodes=[2,4], ubg=[1, 1], lbg=[-1,-1]))
     prb.ct.setConstraintFunction('another_constraint', var_opt['u'] - var_opt['x'][4:6])
     prb.ct.setConstraintFunction('zmp_constraint', fun_opt['zmp_old'] - var_opt['u'], [2, prb.N])
 
     w, g = prb.buildProblem()
+
 
     # print(w)
 
