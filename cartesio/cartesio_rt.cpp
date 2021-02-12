@@ -1,4 +1,5 @@
 #include "cartesio_rt.h"
+#include <cartesio_acceleration_support/ForceLimits.h>
 
 using namespace XBot;
 using namespace XBot::Cartesian;
@@ -114,12 +115,18 @@ bool CartesioRt::on_initialize()
 
     /* Model state topic (optional) */
     _model_state_recv = false;
+    _contact_state_recv = false;
     if(getParamOr("~model_state_from_topic", false))
     {
         _model_state_sub = subscribe("~model_state",
                                      &CartesioRt::on_model_state_recv,
                                      this,
                                      1);
+
+        _contacts_state_sub = subscribe("/odometry/contacts/status",
+                                        &CartesioRt::on_contact_state_recv,
+                                        this,
+                                        1);
     }
 
     /* Ground truth */
@@ -163,12 +170,13 @@ void CartesioRt::starting()
     {
         // listen to messages
         _model_state_sub->run();
+        _contacts_state_sub->run();
 
         // nothing.. will retry
-        if(!_model_state_recv)
+        if(!_model_state_recv || !_contact_state_recv)
         {
             XBOT2_JINFOP_EVERY(HIGH, (*this), 1s,
-                               "waiting for model state..");
+                               "waiting for model state and contact state..");
             return;
         }
 
@@ -220,6 +228,20 @@ void CartesioRt::run()
         if(_model_state_sub)
         {
             _model_state_sub->run();
+            _contacts_state_sub->run();
+            for(auto pair : _contact_state_map)
+            {
+                auto force_constr = std::dynamic_pointer_cast<XBot::Cartesian::acceleration::ForceLimits>
+                        (_rt_ci->getTask(pair.first+"_f_lims"));
+                if(pair.second)
+                {
+                    force_constr->restore();
+                }
+                else
+                {
+                    force_constr->setZero();
+                }
+            }
         }
         else
         {
@@ -298,6 +320,16 @@ void CartesioRt::on_model_state_recv(const CartesioRt::ModelState &msg)
     _rt_model->update();
 
     _model_state_recv = true;
+}
+
+void CartesioRt::on_contact_state_recv(const base_estimation::ContactsStatus& msg)
+{
+    for(auto contact_state : msg.contacts_status)
+    {
+        _contact_state_map[contact_state.header.frame_id] = contact_state.status;
+    }
+
+    _contact_state_recv = true;
 }
 
 XBOT2_REGISTER_PLUGIN(CartesioRt,

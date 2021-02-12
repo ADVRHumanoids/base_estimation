@@ -8,6 +8,8 @@
 
 #include <xbot2/gazebo/dev_link_state_sensor.h>
 
+#include <base_estimation/ContactsStatus.h>
+
 namespace XBot {
 
 class CartesioRt : public ControlPlugin
@@ -30,6 +32,7 @@ private:
     typedef std::pair<Eigen::VectorXd, Eigen::VectorXd> ModelState;
 
     void on_model_state_recv(const ModelState& msg);
+    void on_contact_state_recv(const base_estimation::ContactsStatus& msg);
 
     std::unique_ptr<ros::NodeHandle> _nh;
 
@@ -46,8 +49,9 @@ private:
 
     std::shared_ptr<Hal::LinkStateSensor> _fb_truth;
 
-    SubscriberBase::Ptr _model_state_sub;
-    bool _model_state_recv;
+    SubscriberBase::Ptr _model_state_sub, _contacts_state_sub;
+    bool _model_state_recv, _contact_state_recv;
+    std::map<std::string, bool> _contact_state_map;
 
     std::unique_ptr<thread> _nrt_th;
 };
