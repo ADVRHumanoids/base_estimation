@@ -107,8 +107,7 @@ class Problem:
                     if k in range(chunk[0], chunk[1]):
                         self.ct.addConstraint(constraint)
 
-
-
+        print('----- adding bounds: ------')
         self.__addConstraintBounds()
         w = cs.vertcat(*X, *U)
         # w = [None] * (len(X) + len(U))
@@ -127,17 +126,20 @@ class Problem:
             for k in list(self.ct.g_dict[constraint]['bounds']['ubg'].keys()):
                 self.ct.ubg.extend(self.ct.g_dict[constraint]['bounds']['ubg'][k])
 
+            print(constraint,'_lbg:', [(key, value) for key, value in self.ct.g_dict[constraint]['bounds']['lbg'].items()])
+            print(constraint,'_ubg:',[(key, value) for key, value in self.ct.g_dict[constraint]['bounds']['ubg'].items()])
+            print('\n')
+
     def solveProblem(self, w, g):
 
         w0 = list()
         w0 += list(np.zeros((self.var_opt['x'].shape[0] + self.var_opt['u'].shape[0]) * self.N))
 
-
+        print('================')
         # print('w:', w)
         print('g:', g)
-
-        print(self.ct.lbg)
-        print(self.ct.ubg)
+        print('lbg:', self.ct.lbg)
+        print('ubg:', self.ct.ubg)
         J = 1
 
         prob = {'f': J, 'x': w, 'g': g}
@@ -150,7 +152,7 @@ class Problem:
 
         w_opt = sol['x'].full().flatten()
 
-        print(w_opt)
+        # print(w_opt)
 
     def updateVariables(self, k):
 
@@ -187,6 +189,23 @@ class Constraint:
         if not any(isinstance(el, list) for el in nodes):
             nodes = [nodes]
 
+        if len(nodes) > len(set([item for sublist in nodes for item in sublist])):
+            raise Exception('ERROR: intersecting lists of nodes.')
+
+        # if nodes of constraints is outside the range of nodes in the problem, trim
+        if max(nodes)[0] > prb.N:
+            print(
+            'WARNING: lists of constraints ( max:', [max(nodes)[0], max(nodes)[1]], ') nodes outside the problem nodes ( max:', prb.N,'). Removing.')
+            nodes.remove(max(nodes))
+
+        if max(nodes)[1] > prb.N:
+            print('WARNING: lists of constraints( max:', max(nodes)[1], ') nodes outside the problem nodes ( max:', prb.N, '). Trimming.')
+            max(nodes)[1] = prb.N
+
+        print(nodes)
+        # check if list of nodes make sense
+
+
         if not bounds:
             bounds = dict()
             bounds['nodes'] = nodes
@@ -204,10 +223,10 @@ class Constraint:
 
         if len(bounds['lbg']) != g.shape[0]:
             raise Exception('Dimension of lower bounds (', len(bounds['lbg']), ') '
-                            'does not coincide with the constraint dimension (', g.shape[0], ')')
+                                                                               'does not coincide with the constraint dimension (', g.shape[0], ')')
         if len(bounds['ubg']) != g.shape[0]:
             raise Exception('Dimension of upper bounds (', len(bounds['ubg']), ') '
-                            'does not coincide with the constraint dimension (', g.shape[0], ')')
+                                                                               'does not coincide with the constraint dimension (', g.shape[0], ')')
 
         lbg = dict()
         ubg = dict()
@@ -228,8 +247,8 @@ class Constraint:
             if cs.depends_on(g, var):
                 used_var[name_var] = var
                 # check if variable exists in the full range of nodes
-                if name_var.find('-') != -1: # TODO add chunk stuff to nodes[0]
-                    if nodes[0] - int(name_var[name_var.index('-') + len('-'):]) < 0:
+                if name_var.find('-') != -1: # get from 'nodes' the first constrained node
+                    if min(nodes)[0] - int(name_var[name_var.index('-') + len('-'):]) < 0:
                         raise Exception('Failed to add constraint: variable', name_var, 'can only be added from node n:', int(name_var[name_var.index('-') + len('-'):]))
 
         # create function and add it to dictionary of constraint function
@@ -257,7 +276,7 @@ class Constraint:
 
 
 if __name__ == '__main__':
-    N = 3
+    N = 5
     prb = Problem(N)
     h = 1
     grav = 9.8
@@ -301,7 +320,7 @@ if __name__ == '__main__':
     # prb.ct.addConstraint('multiple_shooting', Fk['xf'] - var_opt['x'][0:6])
     # define template constraint function
     prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6], bounds=dict(nodes=[2,4], ubg=[1, 1], lbg=[-1,-1]))
-    prb.ct.setConstraintFunction('another_constraint', var_opt['u'] - var_opt['x'][4:6])
+    prb.ct.setConstraintFunction('another_constraint', var_opt['u'] - var_opt['x'][4:6], nodes=[[0,2], [4,5]])
     prb.ct.setConstraintFunction('zmp_constraint', fun_opt['zmp_old'] - var_opt['u'], [2, prb.N])
 
     w, g = prb.buildProblem()
