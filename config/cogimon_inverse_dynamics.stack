@@ -3,7 +3,7 @@ solver_options:
     back_end: "qpoases"
     
 stack:
-    - ["l_sole", "r_sole", "waist", "com","LeftWrench", "RightWrench", "postural"]
+    - ["l_foot", "r_foot", "waist", "com","LeftWrench", "RightWrench", "postural"]
 
 
 constraints:
@@ -12,8 +12,8 @@ constraints:
     - "LeftFc"
     - "LeftCoP"
     - "RightCoP"
-    - "RightFlims"
-    - "LeftFlims"
+    - "r_foot_f_lims"
+    - "l_foot_f_lims"
 
 TorqueLimits:
     lib_name: libcartesio_acceleration_support.so
@@ -58,32 +58,36 @@ LeftFc:
     link: "l_sole"
     local: true
 
-RightFlims:
+r_foot_f_lims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "r_sole"
+    name: "r_foot_f_lims"
     min: [-10000, -10000, -10000, -10000, -10000, -10000]
     max: [10000, 10000, 10000,  10000, 10000, 10000]
 
-LeftFlims:
+l_foot_f_lims:
     lib_name: libcartesio_acceleration_support.so
     type: "ForceLimits"
     link: "l_sole"
+    name: "l_foot_f_lims"
     min: [-10000, -10000, -10000, -10000, -10000, -10000]
     max: [10000, 10000, 10000,  10000, 10000, 10000]
 
-l_sole:
+l_foot:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
     lambda: 0.0
     distal_link: "l_sole"
+    name: "l_foot"
     weight: 100
 
-r_sole:
+r_foot:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
     lambda: 0.0
     distal_link: "r_sole"
+    name: "r_foot"
     weight: 100
 
 waist:
@@ -96,7 +100,7 @@ waist:
 com:
     lib_name: libcartesio_acceleration_support.so
     type: "Com"
-    lambda: 0.0002
+    lambda: 0.0004
     weight: 10
 
 postural:

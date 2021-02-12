@@ -12,15 +12,15 @@ ciros = pyci.CartesianInterfaceRos()
 com = ciros.getTask("com")
 com_position, _, _ = com.getPoseReference()
 
-l_sole = ciros.getTask("l_sole")
+l_sole = ciros.getTask("l_foot")
 l_sole_pose, _, _ = l_sole.getPoseReference()
 
-r_sole = ciros.getTask("r_sole")
+r_sole = ciros.getTask("r_foot")
 r_sole_pose, _, _ = r_sole.getPoseReference()
 
 print "com: ", com_position.translation
-print "l_sole: ", l_sole_pose.translation
-print "r_sole: ", r_sole_pose.translation
+print "l_foot: ", l_sole_pose.translation
+print "r_foot: ", r_sole_pose.translation
 
 waypoints = []
 waypoints.append(pyci.WayPoint(Affine3(pos=[com_position.translation[0], l_sole_pose.translation[1], com_position.translation[2]]), 10.))
