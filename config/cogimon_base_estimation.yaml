@@ -28,9 +28,14 @@ xbotcore_plugins:
         thread: rt_main
         type: homing_example
 
-    ros_io: {thread: nrt_main, type: ros_io}
+    ros_control: 
+      thread: nrt_main
+      type: ros_control
+      params:
+        autostart: {value: true, type: bool}
 
-    ros_control: {thread: nrt_main, type: ros_control}
+
+    ros_io: {thread: nrt_main, type: ros_io}
     
     base_estimation: 
         thread: rt_main 
