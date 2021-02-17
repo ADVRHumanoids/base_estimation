@@ -1,4 +1,4 @@
-#/usr/bin/env python2.7
+# /usr/bin/env python2.7
 
 from casadi import *
 from numpy import *
@@ -6,6 +6,8 @@ from numpy import *
 import matplotlib.pyplot as plt
 import pprint
 import time
+from ci_solver import CartesianInterfaceSolver
+
 
 class Stepper:
 
@@ -18,11 +20,9 @@ class Stepper:
         self.ss_2_t = ss_2_t
         self.final_ds_t = final_ds_t
 
-        self.n_duration = 0.02 # single node duration
-        self.T = self.initial_ds_t + self.ss_1_t + self.ds_1_t + self.ss_2_t + self.final_ds_t  #1.0  # time horizon
+        self.n_duration = 0.02  # single node duration
+        self.T = self.initial_ds_t + self.ss_1_t + self.ds_1_t + self.ss_2_t + self.final_ds_t  # 1.0  # time horizon
         self.N = int(self.T / self.n_duration)  # number of control intervals
-
-
 
         print 'duration of initial_ds_t:', self.initial_ds_t
         print 'duration of ss_1_t:', self.ss_1_t
@@ -33,8 +33,8 @@ class Stepper:
         print 'N:', self.N
         print 'duration of a single node:', self.n_duration
 
-        self.initial_ds_n = int(self.initial_ds_t/self.n_duration)
-        self.ss_1_n = int(self.ss_1_t /self.n_duration)
+        self.initial_ds_n = int(self.initial_ds_t / self.n_duration)
+        self.ss_1_n = int(self.ss_1_t / self.n_duration)
         self.ds_1_n = int(self.ds_1_t / self.n_duration)
         self.ss_2_n = int(self.ss_2_t / self.n_duration)
         self.final_ds_n = int(self.final_ds_t / self.n_duration)
@@ -45,7 +45,6 @@ class Stepper:
         print 'duration (in nodes) of second ss:', self.ss_2_n
         print 'duration (in nodes) of final ds:', self.final_ds_n
 
-
         self.ds_1 = self.initial_ds_n
         self.ss_1 = self.ds_1 + self.ss_1_n
         self.ds_2 = self.ss_1 + self.ds_1_n
@@ -55,12 +54,11 @@ class Stepper:
         self.width_foot = 0.1
         self.length_foot = 0.2
 
-        self.max_stride_x = 0.8
+        self.max_stride_x = 0.4
         self.max_stride_y = self.width_foot / 2. + 0.5
         self.min_stride_y = self.width_foot / 2. + 0.15
 
         self.grav = 9.81
-        self.h = 1.
 
         self.sym_c = SX
 
@@ -133,7 +131,7 @@ class Stepper:
         else:
             raise Exception("Invalid argument for sum")
 
-    def getEdges(self, p): # lu, ru, rh, lh
+    def getEdges(self, p):  # lu, ru, rh, lh
 
         lu = DM([+ self.length_foot / 2., + self.width_foot / 2.])
         ru = DM([+ self.length_foot / 2., - self.width_foot / 2.])
@@ -162,7 +160,7 @@ class Stepper:
 
             # right foot must stay still
             if k > 0:
-                self.addConstraint(X[k][8:10] - X[k-1][8:10], [0, 0], [0, 0])
+                self.addConstraint(X[k][8:10] - X[k - 1][8:10], [0, 0], [0, 0])
 
         elif stance == 'R':
             # swing leg R -->
@@ -175,23 +173,24 @@ class Stepper:
 
             # left foot must stay still
             if k > 0:
-                self.addConstraint(X[k][6:8] - X[k-1][6:8], [0, 0], [0, 0])
+                self.addConstraint(X[k][6:8] - X[k - 1][6:8], [0, 0], [0, 0])
 
         elif stance == 'D':
             # double stance -->
             # zmp must stay inside sole L and R
-            self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0], [0, 0])
+            self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0],
+                               [0, 0])
             # alpha (weights on vertices) must be 1 for stance leg + swing leg
             self.addConstraint(self.casadi_sum(X[k][10:18], 0), [1.], [1.])
 
             # left foot AND right foot must stay still
             if k > 0:
-                self.addConstraint(X[k][6:8] - X[k-1][6:8], [0, 0], [0, 0])
-                self.addConstraint(X[k][8:10] - X[k-1][8:10], [0, 0], [0, 0])
+                self.addConstraint(X[k][6:8] - X[k - 1][6:8], [0, 0], [0, 0])
+                self.addConstraint(X[k][8:10] - X[k - 1][8:10], [0, 0], [0, 0])
 
-#######################################
+    #######################################
 
-    def generateProblem(self, initial_com, l_foot, r_foot):
+    def generateProblem(self, initial_com, heigth_com, l_foot, r_foot):
 
         # Start with an empty NLP
         w0 = []  # initial value for optimization variables
@@ -202,66 +201,67 @@ class Stepper:
         self.lbg = []  # lower constraint
         self.ubg = []  # upper constraints
 
+        self.h = heigth_com
         X = list()
         U = list()
 
-        for k in range(self.N+1):
+        for k in range(self.N + 1):
             # STATE
             xk = self.sym_c.sym('X_' + str(k), self.z.size()[0])
             X.append(xk)
 
             if k == 0:  # at the beginning, position, velocity and acceleration to ZERO
                 self.lbw += [initial_com[0, 0], initial_com[0, 1],  # com pos
-                         initial_com[1, 0], initial_com[1, 1],  # com vel
-                         initial_com[2, 0], initial_com[2, 1],  # com acc
-                         l_foot[0], l_foot[1],  # left foot pos
-                         r_foot[0], r_foot[1],  # right foot pos
-                         0., 0., 0., 0.,  # alpha l
-                         0., 0., 0., 0.  # alpha r
-                         ]
+                             initial_com[1, 0], initial_com[1, 1],  # com vel
+                             initial_com[2, 0], initial_com[2, 1],  # com acc
+                             l_foot[0], l_foot[1],  # left foot pos
+                             r_foot[0], r_foot[1],  # right foot pos
+                             0., 0., 0., 0.,  # alpha l
+                             0., 0., 0., 0.  # alpha r
+                             ]
                 self.ubw += [initial_com[0, 0], initial_com[0, 1],
-                         initial_com[1, 0], initial_com[1, 1],
-                         initial_com[2, 0], initial_com[2, 1],
-                         l_foot[0], l_foot[1],  # left foot pos
-                         r_foot[0], r_foot[1],  # right foot pos
-                         1., 1., 1., 1.,  # alpha l
-                         1., 1., 1., 1.  # alpha r
-                         ]
+                             initial_com[1, 0], initial_com[1, 1],
+                             initial_com[2, 0], initial_com[2, 1],
+                             l_foot[0], l_foot[1],  # left foot pos
+                             r_foot[0], r_foot[1],  # right foot pos
+                             1., 1., 1., 1.,  # alpha l
+                             1., 1., 1., 1.  # alpha r
+                             ]
 
-            elif k == self.N: # final state
+            elif k == self.N:  # final state
                 self.lbw += [-100., -100.,  # com pos
-                         0., 0.,  # com vel
-                         0., 0.,  # com acc
-                         -100., -100.,  # left foot pos
-                         -100., -100.,  # right foot pos
-                         0., 0., 0., 0.,
-                         0., 0., 0., 0.,
-                         ]
+                             0., 0.,  # com vel
+                             0., 0.,  # com acc
+                             -100., -100.,  # left foot pos
+                             -100., -100.,  # right foot pos
+                             0., 0., 0., 0.,
+                             0., 0., 0., 0.,
+                             ]
                 self.ubw += [100., 100.,  # com pos
-                         0., 0.,  # com vel
-                         0., 0.,  # com acc
-                         100., 100.,  # left foot pos
-                         100., 100.,  # right foot pos
-                         1., 1., 1., 1.,
-                         1., 1., 1., 1.,
-                         ]
+                             0., 0.,  # com vel
+                             0., 0.,  # com acc
+                             100., 100.,  # left foot pos
+                             100., 100.,  # right foot pos
+                             1., 1., 1., 1.,
+                             1., 1., 1., 1.,
+                             ]
             else:
-                self.lbw += [-100., -100., # com pos
-                         -100., -100., # com vel
-                         -100., -100., # com acc
-                         -100., -100., # left foot pos
-                         -100., -100., # right foot pos
-                         0., 0., 0., 0.,  # alpha l
-                         0., 0., 0., 0.  # alpha r
-                         ]
-                self.ubw += [100., 100., # com pos
-                         100., 100., # com vel
-                         100., 100., # com acc
-                         100., 100., # left foot pos
-                         100., 100., # right foot pos
-                         1., 1., 1., 1.,  # alpha l
-                         1., 1., 1., 1.  # alpha r
-                         ]
+                self.lbw += [-100., -100.,  # com pos
+                             -100., -100.,  # com vel
+                             -100., -100.,  # com acc
+                             -100., -100.,  # left foot pos
+                             -100., -100.,  # right foot pos
+                             0., 0., 0., 0.,  # alpha l
+                             0., 0., 0., 0.  # alpha r
+                             ]
+                self.ubw += [100., 100.,  # com pos
+                             100., 100.,  # com vel
+                             100., 100.,  # com acc
+                             100., 100.,  # left foot pos
+                             100., 100.,  # right foot pos
+                             1., 1., 1., 1.,  # alpha l
+                             1., 1., 1., 1.  # alpha r
+                             ]
 
             # initial guess for state
             w0 += list(np.zeros(self.z.size()[0]))
@@ -282,30 +282,34 @@ class Stepper:
 
             if k > 0:
                 # forward integration
-                Fk = self.F(x0=X[k-1][0:6], p=U[k-1])
+                Fk = self.F(x0=X[k - 1][0:6], p=U[k - 1])
                 # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
-                self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])), list(np.zeros(self.x.size()[0])))
+                self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])),
+                                   list(np.zeros(self.x.size()[0])))
 
+            # minimize velocity
             J = J + sumsqr(X[k][2:4])
 
             # Regularization of alphas
             Ak = X[k][10:18]
             J = J + sumsqr(Ak)
 
-            #WALKING SCHEDULER
+            # WALKING SCHEDULER
             ZMP = X[k][0:2] - X[k][4:6] * (self.h / self.grav)
             Lk = X[k][6:8]
             Rk = X[k][8:10]
 
+            # add stride constraint
             self.addConstraint(Lk - Rk, [-self.max_stride_x, -self.max_stride_y], [self.max_stride_x, self.max_stride_y])
 
-            J = J + 1000.*sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
+            # minimize movement on y
+            J = J + 1000. * sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
 
             # get weighted edges
             wft_l_vert = X[k][10:14] * self.getEdges(Lk)  # lu, ru, rh, lh
             wft_r_vert = X[k][14:18] * self.getEdges(Rk)  # lu, ru, rh, lh
 
-            if k <= self.ds_1: # add double stance
+            if k <= self.ds_1:  # add double stance
                 self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
             elif self.ds_1 < k <= self.ss_1:  # add single stance
                 self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'L', X)
@@ -316,8 +320,7 @@ class Stepper:
             else:
                 self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
 
-
-        w = [None]*(len(X)+len(U))
+        w = [None] * (len(X) + len(U))
         w[0::2] = X
         w[1::2] = U
 
@@ -327,12 +330,15 @@ class Stepper:
 
     def solve(self, prob, initial_guess, constraints):
         # Create an NLP solver
-        solver = nlpsol('solver', 'ipopt', prob, {'ipopt': {'linear_solver': 'ma27', 'tol':1e-4, 'print_level': 0, 'sb':'yes'}, 'print_time':0}) # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
+        solver = nlpsol('solver', 'ipopt', prob,
+                        {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
+                         'print_time': 0})  # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
 
         # Solve the NLP
 
         t = time.time()
-        sol = solver(x0=initial_guess, lbx=constraints['lbw'], ubx=constraints['ubw'], lbg=constraints['lbg'], ubg=constraints['ubg'])
+        sol = solver(x0=initial_guess, lbx=constraints['lbw'], ubx=constraints['ubw'], lbg=constraints['lbg'],
+                     ubg=constraints['ubg'])
         print('duration:', time.time() - t)
 
         w_opt = sol['x'].full().flatten()
@@ -342,21 +348,21 @@ class Stepper:
 
         feet_states = list()
 
-        relevant_nodes = [0, self.ds_1_n+1, self.final_ds_n+1]
+        relevant_nodes = [0, self.ss_2 + 1]  # self.ds_1_n+1,
 
         num_var = self.z.size()[0] + self.u.size()[0]
         for k in relevant_nodes:
-            sol_k = w_opt[num_var*k:(num_var*k+num_var)]
+            sol_k = w_opt[num_var * k:(num_var * k + num_var)]
             feet_states.append(dict(l=sol_k[6:8], r=sol_k[8:10]))
 
         com_states = list()
         for k in range(self.N):
-            sol_k = w_opt[num_var*k:(num_var*k+num_var)]
+            sol_k = w_opt[num_var * k:(num_var * k + num_var)]
             com_states.append(dict(p=list(sol_k[0:2]), v=list(sol_k[2:4]), a=list(sol_k[4:6]), j=sol_k[18:20]))
 
         return com_states, feet_states
 
-    def plot(self, w_opt):# Plot the solution
+    def plot(self, w_opt):  # Plot the solution
         p_opt = []
         v_opt = []
         a_opt = []
@@ -368,7 +374,7 @@ class Stepper:
 
         num_var = self.z.size()[0] + self.u.size()[0]
         for k in range(self.N):
-            sol_k = w_opt[num_var*k:(num_var*k+num_var)]
+            sol_k = w_opt[num_var * k:(num_var * k + num_var)]
             p_opt += list(sol_k[0:2])
             v_opt += list(sol_k[2:4])
             a_opt += list(sol_k[4:6])
@@ -387,7 +393,7 @@ class Stepper:
         alpha_l_opt += list(sol_k[10:14])
         alpha_r_opt += list(sol_k[14:18])
 
-        tgrid = [self.T/self.N*k for k in range(self.N+1)]
+        tgrid = [self.T / self.N * k for k in range(self.N + 1)]
         px = p_opt[0::2]
         vx = v_opt[0::2]
         ax = a_opt[0::2]
@@ -395,12 +401,12 @@ class Stepper:
         rx = r_opt[0::2]
         jx = j_opt[0::2]
 
-        zmpx = list(np.array(px) - np.array(ax)*(self.h/self.grav))
+        zmpx = list(np.array(px) - np.array(ax) * (self.h / self.grav))
 
-        alphal = [sum(alpha_l_opt[x:x+4]) for x in range(0, len(alpha_l_opt), 4)]
-        alphar = [sum(alpha_r_opt[x:x+4]) for x in range(0, len(alpha_r_opt), 4)]
+        alphal = [sum(alpha_l_opt[x:x + 4]) for x in range(0, len(alpha_l_opt), 4)]
+        alphar = [sum(alpha_r_opt[x:x + 4]) for x in range(0, len(alpha_r_opt), 4)]
 
-        jx.insert(0,float('nan'))
+        jx.insert(0, float('nan'))
 
         ######## plot X #######################
         plt.figure()
@@ -422,8 +428,8 @@ class Stepper:
         ry = r_opt[1::2]
         jy = j_opt[1::2]
 
-        zmpy = list(np.array(py) - np.array(ay)*(self.h/self.grav))
-        jy.insert(0,float('nan'))
+        zmpy = list(np.array(py) - np.array(ay) * (self.h / self.grav))
+        jy.insert(0, float('nan'))
 
         ######## plot Y #######################
         plt.figure()
@@ -467,8 +473,7 @@ class Stepper:
                 plt.scatter(pos_x, pos_y)
             k += 1
 
-
-        plt.legend(['p','zmp'])
+        plt.legend(['p', 'zmp'])
         plt.xlabel('x')
         plt.ylabel('y')
 
@@ -478,71 +483,118 @@ class Stepper:
         plt.title('alpha  sum')
         plt.scatter(tgrid, alphal)
         plt.scatter(tgrid, alphar, color='r')
-        plt.legend(['l','r'])
+        plt.legend(['l', 'r'])
         plt.xlabel('t')
         plt.ylabel('weigth')
 
         plt.show()
 
-    def interpolator(self, step_i, step_f, step_height, time, freq):
+    def interpolator(self, step_i, step_f, step_height, time, t_i, t_f, freq):
 
-        traj_len = float(freq) * float(time)
-        t = np.linspace(0,1, traj_len)
+        traj = dict()
 
-        traj_x = step_i[0] + (((6*t - 15)*t + 10)* t**3) * (step_f[0] - step_i[0])  # on the x
-        traj_y = step_i[1] + (((6*t - 15)*t + 10)* t**3) * (step_f[1] - step_i[1])  # on the y
-        traj_z = (64 * t**3. * (1 - t)**3) * step_height # on the z
-        return t, traj_x, traj_y, traj_z
+        traj_len = float(freq) * float(t_f - t_i)
+        traj_len_before = float(freq) * float(t_i)
+        traj_len_after = float(freq) * float(time-t_f)
+        dt = 1. / float(freq)
 
+        traj['x'] = np.full(traj_len_before, step_i[0])
+        traj['y'] = np.full(traj_len_before, step_i[1])
+        traj['z'] = np.full(traj_len_before, 0.)
+
+        t = np.linspace(0, 1, ceil(traj_len))
+
+        traj['x'] = np.append(traj['x'], np.array((step_i[0] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[0] - step_i[0]))))  # on the x
+        traj['y'] = np.append(traj['y'], (step_i[1] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[1] - step_i[1]))) # on the y
+        traj['z'] = np.append(traj['z'], (64 * t ** 3. * (1 - t) ** 3) * step_height) # on the z
+
+        traj['x'] = np.append(traj['x'], np.full(traj_len_after, step_f[0]))
+        traj['y'] = np.append(traj['y'], np.full(traj_len_after, step_f[1]))
+        traj['z'] = np.append(traj['z'], np.full(traj_len_after, 0.))
+
+        # compute velocity
+        traj['dx'] = (np.array(traj['x'][1:]) - np.array(traj['x'][:-1])) / dt
+        traj['dy'] = (np.array(traj['y'][1:]) - np.array(traj['y'][:-1])) / dt
+        traj['dz'] = (np.array(traj['z'][1:]) - np.array(traj['z'][:-1])) / dt
+
+        # compute acceleration
+        traj['ddx'] = (np.array(traj['dx'][1:]) - np.array(traj['dx'][:-1])) / dt
+        traj['ddy'] = (np.array(traj['dy'][1:]) - np.array(traj['dy'][:-1])) / dt
+        traj['ddz'] = (np.array(traj['dz'][1:]) - np.array(traj['dz'][:-1])) / dt
+
+        return t, traj
 
 
 if __name__ == '__main__':
 
     initial_ds = 0.2
-    ss_1 = 0.1
+    ss_1 = 0.5
     ds_1 = 0.
     ss_2 = 0.
-    final_ds = 0.2
+    final_ds = 0.4
     stp = Stepper(initial_ds, ss_1, ds_1, ss_2, final_ds)
 
     initial_l_foot = np.array([0., 0.1, 0.])
     initial_r_foot = np.array([0., -0.1, 0.])
-    initial_com = np.array([[0., 0.], [0.5, 0.], [0., 0.]])
-    #
-    problem, initial_guess, constraints = stp.generateProblem(initial_com=initial_com, l_foot=initial_l_foot, r_foot=initial_r_foot)
+    initial_com = np.array([[0., 0.], [0.5, 0.], [0., 0]])
+    height_com = 0.9
+    problem, initial_guess, constraints = stp.generateProblem(initial_com=initial_com, heigth_com=height_com, l_foot=initial_l_foot,
+                                                              r_foot=initial_r_foot)
 
     # problem with zero initial velocity
     w_opt = stp.solve(problem, initial_guess, constraints)
 
+    exit()
     # problem with given velocity
-    constraints['lbw'][2] = 0.5 #change velocity constraint
-    constraints['ubw'][2] = 0.5  # change velocity constraint
+    # constraints['lbw'][2] = 0.5  # change velocity constraint
+    # constraints['ubw'][2] = 0.5  # change velocity constraint
 
     # for i in range(10):
-    w_opt = stp.solve(problem, w_opt, constraints)
-
+    # w_opt = stp.solve(problem, w_opt, constraints)
 
     com_states, feet_states = stp.get_relevant_variables(w_opt)
     #
-    stp.plot(w_opt)
+    # stp.plot(w_opt)
 
-    # show step and com trajectories
+    ## show step and com trajectories
     # for i in range(len(feet_states)):
     #     plt.scatter(feet_states[i]['l'][0], feet_states[i]['l'][1])
     #     plt.scatter(feet_states[i]['r'][0], feet_states[i]['r'][1])
     #
+    # plt.show()
+    #
     # plt.plot([i['p'][0] for i in com_states], [i['p'][1] for i in com_states])
     #
-    # t, traj_x, traj_y, traj_z = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss, freq=100)
-    #
-    # plt.figure()
-    # plt.plot(t, traj_x)
-    # plt.plot(t, traj_y)
-    # plt.plot(t, traj_z)
-    # plt.legend(['x', 'y', 'z'])
-    # plt.xlabel('t')
-    # plt.show()
+    ## get the initial and the final position, get step height and interpolate
+    t, traj = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss_1,
+                               freq=100)
+    # position
+    plt.figure()
+    plt.plot(t, traj['x'])
+    plt.plot(t, traj['y'])
+    plt.plot(t, traj['z'])
+    plt.legend(['x', 'y', 'z'])
+    plt.xlabel('t')
 
+    # # velocity
+    # plt.figure()
+    # plt.plot(t[1:], traj['dx'])
+    # plt.plot(t[1:], traj['dy'])
+    # plt.plot(t[1:], traj['dz'])
+    # plt.legend(['dx', 'dy', 'dz'])
+    # plt.xlabel('t')
+    #
+    # # acceleration
+    # plt.figure()
+    # plt.plot(t[2:], traj['ddx'])
+    # plt.plot(t[2:], traj['ddy'])
+    # plt.plot(t[2:], traj['ddz'])
+    # plt.legend(['ddx', 'ddy', 'ddz'])
+    # plt.xlabel('t')
+
+    plt.show()
+
+    exit()
     #################################################################################################
     # if I use the same integrator over the states it should give the same result as the com found by the optimal controller
     x_state = DM(initial_com.flatten())
@@ -551,8 +603,7 @@ if __name__ == '__main__':
         x_state = horzcat(x_state, Fk_2['xf'])
 
     print('state.shape', x_state.shape)
-    plt.plot(x_state[0, :].full().flatten(), x_state[1, :].full().flatten(), 'r',  linewidth=2)
-
+    plt.plot(x_state[0, :].full().flatten(), x_state[1, :].full().flatten(), 'r', linewidth=2)
 
     #################################################################################################
     # integrate 'multiplier' times for every loop
@@ -570,14 +621,6 @@ if __name__ == '__main__':
             state_1 = horzcat(state_1, Fk_1['xf'])
 
     print('state_1.shape', state_1.shape)
-    plt.plot(state_1[0, :].full().flatten(), state_1[1, :].full().flatten(), 'k--',  linewidth=2)
+    plt.plot(state_1[0, :].full().flatten(), state_1[1, :].full().flatten(), 'k--', linewidth=2)
     #
     plt.show()
-
-
-
-
-
-
-
-
