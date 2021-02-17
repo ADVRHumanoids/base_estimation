@@ -147,8 +147,8 @@ while t < (intial_t + T_total):
     com.translation[0] = com_traj_x[i]
     com.translation[1] = com_traj_y[i]
 
-    ci_solver.sendTrajectory(com_task, com)
-    ci_solver.sendTrajectory(ctrl_tasks[0], lfoot)
+    ci_solver.sendTrajectory(com_task, com, sim=0)
+    ci_solver.sendTrajectory(ctrl_tasks[0], lfoot, sim=0)
 
 
     # print('LEFT FOOT:')

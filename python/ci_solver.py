@@ -81,7 +81,7 @@ class CartesianInterfaceSolver:
 
         return ik_str
 
-    def __ci_solve_integrate(self, t):
+    def __ci_solve_integrate(self, t, sim):
 
         # integrate model
         if not self.ci.update(t, self.ik_dt):
@@ -98,8 +98,9 @@ class CartesianInterfaceSolver:
         self.model.setJointVelocity(qdot)
         self.model.update()
 
-        self.robot.setPositionReference(q[6:])
-        self.robot.move()
+        if sim:
+            self.robot.setPositionReference(q[6:])
+            self.robot.move()
 
         return True
 
@@ -152,7 +153,7 @@ class CartesianInterfaceSolver:
     def getTasks(self):
         return self.ctrl_tasks, self.com
 
-    def sendTrajectory(self, task, traj):
+    def sendTrajectory(self, task, traj, sim=0):
 
         q = np.empty(shape=[self.model.getJointNum(), 0])
 
@@ -165,7 +166,7 @@ class CartesianInterfaceSolver:
 
         task.setPoseReference(traj)
 
-        if not self.__ci_solve_integrate(ci_time):
+        if not self.__ci_solve_integrate(ci_time, sim):
             print('Unable to solve!!!')
             unable_to_solve += 1
             print(unable_to_solve)
