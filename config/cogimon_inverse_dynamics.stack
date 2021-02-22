@@ -77,7 +77,7 @@ l_foot_f_lims:
 l_foot:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.0
+    lambda: 0.0002
     distal_link: "l_sole"
     name: "l_foot"
     weight: 100
@@ -85,7 +85,7 @@ l_foot:
 r_foot:
     lib_name: libcartesio_acceleration_support.so
     type: "Cartesian"
-    lambda: 0.0
+    lambda: 0.0002
     distal_link: "r_sole"
     name: "r_foot"
     weight: 100
