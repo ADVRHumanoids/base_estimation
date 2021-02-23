@@ -71,8 +71,14 @@ r_sole.setWayPoints(waypoints)
 
 
 
-raw_input("Press for lower leg")
+raw_input("Press for final com")
 
+
+waypoints=[]
+waypoints.append(pyci.WayPoint(Affine3(pos=[com_position.translation[0]+0.05, com_position.translation[1], com_position.translation[2]]), 15.))
+com.setWayPoints(waypoints)
+
+rospy.sleep(5.)
 
 msg = ContactsStatus()
 c = ContactStatus()
@@ -84,8 +90,3 @@ c.header.frame_id = 'r_foot'
 c.status = True
 msg.contacts_status.append(c)
 pub.publish(msg)
-
-
-waypoints=[]
-waypoints.append(pyci.WayPoint(Affine3(pos=[com_position.translation[0]+0.05, com_position.translation[1], com_position.translation[2]]), 20.))
-com.setWayPoints(waypoints)
