@@ -117,11 +117,27 @@ bool BaseEstimationPlugin::on_initialize()
     }
 
     // use ft sensors
+    _virtual_ft_sensor = std::make_shared<XBot::Cartesian::Utils::ForceEstimation>
+            (_model,// 1./getPeriodSec(),
+            (double)XBot::Cartesian::Utils::ForceEstimation::DEFAULT_SVD_THRESHOLD); ///TODO: add param for type selection
     for(size_t i = 0; i < ft_frames.size(); i++)
     {
         std::string ft_name = ft_frames[i];
 
-        auto ft = _robot->getForceTorque().at(ft_name);
+        XBot::ForceTorqueSensor::ConstPtr ft;
+
+        std::map< std::string, ForceTorqueSensor::ConstPtr > ft_map = _robot->getForceTorque();
+
+        if(ft_map.find(ft_name) != ft_map.end())
+        {
+            ft = ft_map.at(ft_name);
+        }
+        else
+        {
+
+            ft = _virtual_ft_sensor->add_link(ft_name, {0,1,2});
+        }
+
         _ft_map[feet_prefix[i]] = ft;
 
         auto vertices = footFrames(feet_prefix[i]);
@@ -188,6 +204,7 @@ void BaseEstimationPlugin::on_start()
     }
 
     _model->update();
+    _virtual_ft_sensor->update();
 
     _est->reset();
 }
@@ -197,6 +214,7 @@ void BaseEstimationPlugin::run()
     /* Update robot */
     _robot->sense(false);
     _model->syncFrom(*_robot);
+    _virtual_ft_sensor->update();
 
     /* Update contact state*/
     if(_ft_map.size() > 0)
@@ -205,6 +223,9 @@ void BaseEstimationPlugin::run()
         {
             Eigen::Vector6d wrench;
             ft.second->getWrench(wrench);
+
+            //std::cout<<ft.first<<": "<<wrench<<std::endl;
+
             if(wrench[2] >= _in_contact_ths) //in contact
             {
                 if(!_contacts_state.at(ft.first))

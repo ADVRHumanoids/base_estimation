@@ -13,6 +13,8 @@
 #include <matlogger2/matlogger2.h>
 #include <base_estimation/ContactsStatus.h>
 
+#include <cartesian_interface/utils/estimation/ForceEstimation.h>
+
 #include <base_estimation/contact_viz.h>
 
 namespace XBot {
@@ -63,6 +65,8 @@ private:
     ContactsState _contacts_state;
     double _in_contact_ths, _not_in_contact_ths;
     std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
+    XBot::Cartesian::Utils::ForceEstimation::Ptr _virtual_ft_sensor;
+
 
     std::shared_ptr<ikbe::contact_viz> _contact_viz;
 };
