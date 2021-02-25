@@ -179,17 +179,17 @@ class Problem:
 
     def solveProblem(self, w, g):
 
-        print('================')
-        print('w:', w.shape)
-        print('lbw:', len(self.lbw))
-        print('ubw:', len(self.ubw))
-        print('w0:', len(self.w0))
-
-        print('g:', g.shape)
-        print('lbg:', len(self.ct.lbg))
-        print('ubg:', len(self.ct.ubg))
-
-        print('================')
+        # print('================')
+        # print('w:', w.shape)
+        # print('lbw:', len(self.lbw))
+        # print('ubw:', len(self.ubw))
+        # print('w0:', len(self.w0))
+        #
+        # print('g:', g.shape)
+        # print('lbg:', len(self.ct.lbg))
+        # print('ubg:', len(self.ct.ubg))
+        #
+        # print('================')
         # print('w:', w)
         # print('lbw:', self.lbw)
         # print('ubw:', self.ubw)
@@ -313,7 +313,7 @@ class Problem:
 
         f = self.j_dict[name]['cost_function']
         j = f(*[self.var_opt[x] for x in self.j_dict[name]['var']])
-        print('j:', j)
+        # print('j:', j)
         self.j = self.j + j
 
     def showVariables(self):
@@ -340,6 +340,7 @@ class Problem:
 
 
         # todo careful about ordering
+        # filling arrays with zeros
         num_var = sum([var[0] for name, var in prb_vars_ordered.items()])
         opt_values = dict()
         for name, var in prb_vars_ordered.items():
@@ -358,7 +359,7 @@ class Problem:
         # fill last value without u
         del prb_vars_ordered['u']
         num_var_last = sum([var[0] for name, var in prb_vars_ordered.items()])
-        sol_N = w_opt[num_var_last * self.N:(num_var_last * self.N + num_var_last)]
+        sol_N = w_opt[-num_var_last:]
 
         j = 0
         for name, var in prb_vars_ordered.items():
