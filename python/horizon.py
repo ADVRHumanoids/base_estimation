@@ -2,7 +2,7 @@
 import casadi as cs
 import numpy as np
 import warnings
-
+from collections import OrderedDict
 import time
 
 
@@ -68,8 +68,12 @@ class Problem:
 
         self.j_dict = dict()
 
+        # all the variables in the problem for all the nodes
         self.state_var = list()
         self.j = 0
+
+        # symbolic variables of the problems (without past variables) and their dimension
+        self.prb_vars = dict()
 
     def setVariable(self, name, var_dim, k_node=[]):
 
@@ -103,15 +107,18 @@ class Problem:
 
         self.w0 = list()
 
+
+        for name, var in self.var_opt.items():
+            if name.find('-') == -1:
+                self.prb_vars[name] = var.shape
+
         for k in range(self.N): # todo decide if N or N+1
 
-            print('----- node', k, '-----')
+            # print('----- node', k, '-----')
 
             state_var_k = list()
 
-
             self.updateVariables(k)
-
 
             for var in self.var_opt:
                 if var.find('-') == -1:
@@ -130,10 +137,11 @@ class Problem:
             # todo remove last input
             # todo make possible to define what to include in state variable and what not
 
-            print('adding constraint functions:')
+            # print('adding constraint functions:')
             # add new constraint with changed input
             self.ct.update(self.var_opt)
             for constraint in self.ct.g_dict:
+                # print('ADDING CONSTRAINT:', constraint)
                 # add constraint only if in the specified nodes
                 if any(isinstance(el, list) for el in self.ct.g_dict[constraint]['nodes']):
                     for chunk in self.ct.g_dict[constraint]['nodes']:
@@ -142,8 +150,9 @@ class Problem:
                 else:
                     if k in range(self.ct.g_dict[constraint]['nodes'][0], self.ct.g_dict[constraint]['nodes'][1]):
                         self.ct.addConstraint(constraint)
-
+            # print('===============================')
             # add new cost function
+
             for cost_fun in self.j_dict:
                 if any(isinstance(el, list) for el in self.j_dict[cost_fun]['nodes']):
                     for chunk in self.j_dict[cost_fun]['nodes']:
@@ -152,9 +161,6 @@ class Problem:
                 else:
                     if k in range(self.j_dict[cost_fun]['nodes'][0], self.j_dict[cost_fun]['nodes'][1]):
                         self.addCostFunction(cost_fun)
-
-
-        print('----- adding bounds: ------')
 
         self.ct.addConstraintBounds()
 
@@ -196,7 +202,7 @@ class Problem:
 
         prob = {'f': J, 'x': w, 'g': g}
         solver = cs.nlpsol('solver', 'ipopt', prob,
-                           {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 0, 'sb': 'yes'},
+                           {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
                             'print_time': 0})  # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
 
         # Solve the NLP
@@ -204,6 +210,7 @@ class Problem:
 
         w_opt = sol['x'].full().flatten()
 
+        return w_opt
         # print(w_opt)
 
     def updateVariables(self, k):
@@ -235,17 +242,16 @@ class Problem:
 
     def setStateBoundsFromName(self, name, ubw, lbw, nodes=None):
 
-        # print('adding bound:', name)
-        # print('')
-        if not nodes:
+        if nodes is None:
             nodes = [0, self.N]
+
+        # print('state variable {} at node {}: lower bounds: {}'.format(name, nodes, lbw))
 
         if isinstance(nodes, int):
             for var_dict in self.state_var[nodes]:
                 if var_dict['name'] == name:
                     var_dict['lbw'] = lbw
                     var_dict['ubw'] = ubw
-
         elif isinstance(nodes, list):
             for node in range(nodes[0], nodes[1]):
                 for var_dict in self.state_var[node]:
@@ -307,8 +313,60 @@ class Problem:
 
         f = self.j_dict[name]['cost_function']
         j = f(*[self.var_opt[x] for x in self.j_dict[name]['var']])
-        # print('j:', j)
+        print('j:', j)
         self.j = self.j + j
+
+    def showVariables(self):
+
+        k = 0
+        for state in self.state_var:
+            k += 1
+            print('======node {} ======='.format(k))
+            for elem in state:
+                print(elem)
+
+    def getOptimizedVariables(self, w_opt):
+
+        # #todo hacky hack to split x into p, v, a
+        prb_vars_ordered = OrderedDict(self.prb_vars)
+
+
+        if 'x' in prb_vars_ordered:
+            del prb_vars_ordered['x']
+            prb_vars_ordered.update(p=(2, 1), v=(2, 1), a=(2, 1))
+            prb_vars_ordered.move_to_end('a', last=False)
+            prb_vars_ordered.move_to_end('v', last=False)
+            prb_vars_ordered.move_to_end('p', last=False)
+
+
+        # todo careful about ordering
+        num_var = sum([var[0] for name, var in prb_vars_ordered.items()])
+        opt_values = dict()
+        for name, var in prb_vars_ordered.items():
+            opt_values[name] = np.zeros([var[0], self.N])
+
+        # fill first N-1 values
+        for k in range(self.N-1):
+            sol_k = w_opt[num_var * k:(num_var * k + num_var)]
+            j = 0
+
+            for name, var in prb_vars_ordered.items():
+                for dim_i in range(opt_values[name].shape[0]):
+                    opt_values[name][dim_i, k] = sol_k[j]
+                    j += 1
+
+        # fill last value without u
+        del prb_vars_ordered['u']
+        num_var_last = sum([var[0] for name, var in prb_vars_ordered.items()])
+        sol_N = w_opt[num_var_last * self.N:(num_var_last * self.N + num_var_last)]
+
+        j = 0
+        for name, var in prb_vars_ordered.items():
+            for dim_i in range(opt_values[name].shape[0]):
+                opt_values[name][dim_i, self.N-1] = sol_N[j]
+                j += 1
+
+        return opt_values
 
 class Constraint:
 
@@ -479,6 +537,8 @@ class Constraint:
         f = self.g_dict[name]['constraint']
         g = f(*[self.var_opt[x] for x in self.g_dict[name]['var']])
         # print('g: {} {}'.format(name, g.shape))
+        # print('value:', g)
+        # print('bounds: {}'.format(self.g_dict[name]['bounds']))
         self.g.append(g)
 
     def setConstraintBounds(self, lbg, ubg, nodes):
@@ -503,10 +563,11 @@ class Constraint:
 
     def addConstraintBounds(self):
 
-        for constraint in self.g_dict:
-            for bound in self.g_dict[constraint]['bounds']:
-                self.lbg.extend(self.g_dict[constraint]['bounds'][bound]['lbg'])
-                self.ubg.extend(self.g_dict[constraint]['bounds'][bound]['ubg'])
+        for node in range(self.N):
+            for constraint in self.g_dict:
+                if node in self.g_dict[constraint]['bounds']:
+                    self.lbg.extend(self.g_dict[constraint]['bounds'][node]['lbg'])
+                    self.ubg.extend(self.g_dict[constraint]['bounds'][node]['ubg'])
 
                 # print('{0}_lbg --> nodes: {1} bounds: {2}'.format(constraint, bound, self.g_dict[constraint]['bounds'][bound]['lbg']))
                 # print('{0}_ubg --> nodes: {1} bounds: {2}'.format(constraint, bound, self.g_dict[constraint]['bounds'][bound]['ubg']))
@@ -558,13 +619,11 @@ if __name__ == '__main__':
     prb.setFunction('zmp', zmp)
     prb.setFunction('zmp_old', zmp_old)
 
-    # exit()
     # Fk = integrator(x0=var_opt['x-1'][0:6], p=var_opt['u-1'])
 
     fun_opt = prb.getFunction()
 
     # print(fun_opt)
-    # exit()
     # if k > 0:
     # forward integration
     ## Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
@@ -605,8 +664,8 @@ if __name__ == '__main__':
     # print(prb.ct.g)
     # print(prb.ct.lbg)
     # print(prb.ct.ubg)
-    # exit()
 
     # x and u should be always present
 
     w_opt = prb.solveProblem(w, g)
+
