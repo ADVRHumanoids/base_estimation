@@ -2,12 +2,11 @@
 
 from casadi import *
 from numpy import *
-
+import matplotlib
 import matplotlib.pyplot as plt
 import pprint
 import time
 from ci_solver import CartesianInterfaceSolver
-
 
 class Stepper:
 
@@ -146,6 +145,8 @@ class Stepper:
         self.g += [Gk]
         self.lbg += LBGk
         self.ubg += UBGk
+        print('g:', Gk)
+        print('\n')
 
     def addStance(self, zmp, wft_l_vert, wft_r_vert, k, stance, X):
 
@@ -178,8 +179,10 @@ class Stepper:
         elif stance == 'D':
             # double stance -->
             # zmp must stay inside sole L and R
-            self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0],
-                               [0, 0])
+            print('adding zmp')
+            self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0], [0, 0])
+
+            print('adding alphas')
             # alpha (weights on vertices) must be 1 for stance leg + swing leg
             self.addConstraint(self.casadi_sum(X[k][10:18], 0), [1.], [1.])
 
@@ -210,6 +213,7 @@ class Stepper:
             xk = self.sym_c.sym('X_' + str(k), self.z.size()[0])
             X.append(xk)
 
+            print('======== node {} ============'.format(k))
             if k == 0:  # at the beginning, position, velocity and acceleration to ZERO
                 self.lbw += [initial_com[0, 0], initial_com[0, 1],  # com pos
                              initial_com[1, 0], initial_com[1, 1],  # com vel
@@ -229,36 +233,36 @@ class Stepper:
                              ]
 
             elif k == self.N:  # final state
-                self.lbw += [-100., -100.,  # com pos
+                self.lbw += [-inf, -inf,  # com pos
                              0., 0.,  # com vel
                              0., 0.,  # com acc
-                             -100., -100.,  # left foot pos
-                             -100., -100.,  # right foot pos
+                             -inf, -inf,  # left foot pos
+                             -inf, -inf,  # right foot pos
                              0., 0., 0., 0.,
                              0., 0., 0., 0.,
                              ]
-                self.ubw += [100., 100.,  # com pos
+                self.ubw += [inf, inf,  # com pos
                              0., 0.,  # com vel
                              0., 0.,  # com acc
-                             100., 100.,  # left foot pos
-                             100., 100.,  # right foot pos
+                             inf, inf,  # left foot pos
+                             inf, inf,  # right foot pos
                              1., 1., 1., 1.,
                              1., 1., 1., 1.,
                              ]
             else:
-                self.lbw += [-100., -100.,  # com pos
-                             -100., -100.,  # com vel
-                             -100., -100.,  # com acc
-                             -100., -100.,  # left foot pos
-                             -100., -100.,  # right foot pos
+                self.lbw += [-inf, -inf,  # com pos
+                             -inf, -inf,  # com vel
+                             -inf, -inf,  # com acc
+                             -inf, -inf,  # left foot pos
+                             -inf, -inf,  # right foot pos
                              0., 0., 0., 0.,  # alpha l
                              0., 0., 0., 0.  # alpha r
                              ]
-                self.ubw += [100., 100.,  # com pos
-                             100., 100.,  # com vel
-                             100., 100.,  # com acc
-                             100., 100.,  # left foot pos
-                             100., 100.,  # right foot pos
+                self.ubw += [inf, inf,  # com pos
+                             inf, inf,  # com vel
+                             inf, inf,  # com acc
+                             inf, inf,  # left foot pos
+                             inf, inf,  # right foot pos
                              1., 1., 1., 1.,  # alpha l
                              1., 1., 1., 1.  # alpha r
                              ]
@@ -266,43 +270,42 @@ class Stepper:
             # initial guess for state
             w0 += list(np.zeros(self.z.size()[0]))
 
-            # CONTROL (last loop does not have u)
+        # CONTROL (last loop does not have u)
             if k < self.N:
                 uk = self.sym_c.sym('U_' + str(k), self.u.size()[0])
                 U.append(uk)
 
-                # minimize input
-                J = J + 0.001 * sumsqr(U[k])
-
                 self.lbw += [-1000., -1000.]
                 self.ubw += [1000., 1000.]
+
+                # minimize input
+                J = J + 0.001 * sumsqr(U[k])
 
                 # initial guess for control
                 w0 += list(np.zeros(self.u.size()[0]))
 
             if k > 0:
-                # forward integration
+                ## forward integration
                 Fk = self.F(x0=X[k - 1][0:6], p=U[k - 1])
                 # Multiple Shooting (the result of the integrator [XInt[k-1]] must be the equal to the value of the next node)
-                self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])),
-                                   list(np.zeros(self.x.size()[0])))
+                self.addConstraint(Fk['xf'] - X[k][0:6], list(np.zeros(self.x.size()[0])), list(np.zeros(self.x.size()[0])))
 
-            # minimize velocity
+            ## minimize velocity
             J = J + sumsqr(X[k][2:4])
 
-            # Regularization of alphas
+            ## Regularization of alphas
             Ak = X[k][10:18]
             J = J + sumsqr(Ak)
 
-            # WALKING SCHEDULER
+            ## WALKING SCHEDULER
             ZMP = X[k][0:2] - X[k][4:6] * (self.h / self.grav)
             Lk = X[k][6:8]
             Rk = X[k][8:10]
 
-            # add stride constraint
+            ## add stride constraint
             self.addConstraint(Lk - Rk, [-self.max_stride_x, -self.max_stride_y], [self.max_stride_x, self.max_stride_y])
 
-            # minimize movement on y
+            ## minimize movement on y
             J = J + 1000. * sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
 
             # get weighted edges
@@ -320,15 +323,27 @@ class Stepper:
             else:
                 self.addStance(ZMP, wft_l_vert, wft_r_vert, k, 'D', X)
 
+
         w = [None] * (len(X) + len(U))
         w[0::2] = X
         w[1::2] = U
 
         prob = {'f': J, 'x': vertcat(*w), 'g': vertcat(*self.g)}
         constraints = dict(lbw=self.lbw, ubw=self.ubw, lbg=self.lbg, ubg=self.ubg)
+
         return prob, w0, constraints
 
     def solve(self, prob, initial_guess, constraints):
+
+        print('================')
+        print('w:', prob['x'].shape)
+        print('lbw:', len(self.lbw))
+        print('ubw:', len(self.ubw))
+        print('g:', prob['g'].shape)
+        print('lbg:', len(self.lbg))
+        print('ubg:', len(self.ubg))
+        print('================')
+
         # Create an NLP solver
         solver = nlpsol('solver', 'ipopt', prob,
                         {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
@@ -492,7 +507,7 @@ class Stepper:
     def interpolator(self, step_i, step_f, step_height, time, t_i, t_f, freq):
 
         traj = dict()
-
+        traj_tot = float(freq) * float(time)
         traj_len = float(freq) * float(t_f - t_i)
         traj_len_before = float(freq) * float(t_i)
         traj_len_after = float(freq) * float(time-t_f)
@@ -502,49 +517,75 @@ class Stepper:
         traj['y'] = np.full(traj_len_before, step_i[1])
         traj['z'] = np.full(traj_len_before, 0.)
 
+        traj['dx'] = np.full(traj_len_before, 0.)
+        traj['dy'] = np.full(traj_len_before, 0.)
+        traj['dz'] = np.full(traj_len_before, 0.)
+
+        traj['ddx'] = np.full(traj_len_before, 0.)
+        traj['ddy'] = np.full(traj_len_before, 0.)
+        traj['ddz'] = np.full(traj_len_before, 0.)
+
         t = np.linspace(0, 1, ceil(traj_len))
 
-        traj['x'] = np.append(traj['x'], np.array((step_i[0] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[0] - step_i[0]))))  # on the x
+        traj['x'] = np.append(traj['x'], (step_i[0] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[0] - step_i[0])))  # on the x
         traj['y'] = np.append(traj['y'], (step_i[1] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[1] - step_i[1]))) # on the y
         traj['z'] = np.append(traj['z'], (64 * t ** 3. * (1 - t) ** 3) * step_height) # on the z
+
 
         traj['x'] = np.append(traj['x'], np.full(traj_len_after, step_f[0]))
         traj['y'] = np.append(traj['y'], np.full(traj_len_after, step_f[1]))
         traj['z'] = np.append(traj['z'], np.full(traj_len_after, 0.))
 
-        # compute velocity
-        traj['dx'] = (np.array(traj['x'][1:]) - np.array(traj['x'][:-1])) / dt
-        traj['dy'] = (np.array(traj['y'][1:]) - np.array(traj['y'][:-1])) / dt
-        traj['dz'] = (np.array(traj['z'][1:]) - np.array(traj['z'][:-1])) / dt
 
-        # compute acceleration
-        traj['ddx'] = (np.array(traj['dx'][1:]) - np.array(traj['dx'][:-1])) / dt
-        traj['ddy'] = (np.array(traj['dy'][1:]) - np.array(traj['dy'][:-1])) / dt
-        traj['ddz'] = (np.array(traj['dz'][1:]) - np.array(traj['dz'][:-1])) / dt
+        # compute velocity
+        traj['dx'] = np.append(traj['dx'], 30 * (t - 1) ** 2 * t ** 2 * (step_f[0] - step_i[0]))
+        traj['dy'] = np.append(traj['dy'], 30 * (t - 1) ** 2 * t ** 2 * (step_f[1] - step_i[1]))
+        traj['dz'] = np.append(traj['dz'], step_height * (t - 1) ** 2 * (t ** 2.0 * (192.0 - 192.0 * t) - 192 * t ** 3.0))
+
+        traj['dx'] = np.append(traj['dx'], np.full(traj_len_after, 0.))
+        traj['dy'] = np.append(traj['dy'], np.full(traj_len_after, 0.))
+        traj['dz'] = np.append(traj['dz'], np.full(traj_len_after, 0.))
+
+        # computeration
+        traj['ddx'] = np.append(traj['ddx'], 60 * t * (2 * t ** 2 - 3 * t + 1) * (step_f[0] - step_i[0]))
+        traj['ddy'] = np.append(traj['ddy'], 60 * t * (2 * t ** 2 - 3 * t + 1) * (step_f[1] - step_i[1]))
+        traj['ddz'] = np.append(traj['ddz'], step_height * (384.0 * t ** 1.0 - 2304.0 * t ** 2.0 + 3840.0 * t ** 3.0 - 1920.0 * t ** 4.0))
+
+        traj['ddx'] = np.append(traj['ddx'], np.full(traj_len_after, 0.))
+        traj['ddy'] = np.append(traj['ddy'], np.full(traj_len_after, 0.))
+        traj['ddz'] = np.append(traj['ddz'], np.full(traj_len_after, 0.))
+
+        # small hack for t filling
+        t = np.linspace(0, 1, len(traj['x']))
 
         return t, traj
 
 
 if __name__ == '__main__':
 
+    np.set_printoptions(precision=3, suppress=True)
+    
     initial_ds = 0.2
     ss_1 = 0.5
     ds_1 = 0.
     ss_2 = 0.
     final_ds = 0.4
+    T_total = initial_ds + ss_1 + ds_1 + ss_2 + final_ds
+
     stp = Stepper(initial_ds, ss_1, ds_1, ss_2, final_ds)
 
     initial_l_foot = np.array([0., 0.1, 0.])
     initial_r_foot = np.array([0., -0.1, 0.])
-    initial_com = np.array([[0., 0.], [0.5, 0.], [0., 0]])
+    initial_com = np.array([[0., 0.], [0.4, 0.], [0., 0]])
     height_com = 0.9
     problem, initial_guess, constraints = stp.generateProblem(initial_com=initial_com, heigth_com=height_com, l_foot=initial_l_foot,
                                                               r_foot=initial_r_foot)
 
+
+
     # problem with zero initial velocity
     w_opt = stp.solve(problem, initial_guess, constraints)
 
-    exit()
     # problem with given velocity
     # constraints['lbw'][2] = 0.5  # change velocity constraint
     # constraints['ubw'][2] = 0.5  # change velocity constraint
@@ -554,7 +595,7 @@ if __name__ == '__main__':
 
     com_states, feet_states = stp.get_relevant_variables(w_opt)
     #
-    # stp.plot(w_opt)
+    stp.plot(w_opt)
 
     ## show step and com trajectories
     # for i in range(len(feet_states)):
@@ -566,17 +607,17 @@ if __name__ == '__main__':
     # plt.plot([i['p'][0] for i in com_states], [i['p'][1] for i in com_states])
     #
     ## get the initial and the final position, get step height and interpolate
-    t, traj = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=ss_1,
-                               freq=100)
-    # position
-    plt.figure()
-    plt.plot(t, traj['x'])
-    plt.plot(t, traj['y'])
-    plt.plot(t, traj['z'])
-    plt.legend(['x', 'y', 'z'])
-    plt.xlabel('t')
+    t, traj = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.5, time=T_total, t_i=initial_ds, t_f=initial_ds+ss_1, freq=100)
 
-    # # velocity
+    # position
+    # plt.figure()
+    # plt.plot(t, traj['x'])
+    # plt.plot(t, traj['y'])
+    # plt.plot(t, traj['z'])
+    # plt.legend(['x', 'y', 'z'])
+    # plt.xlabel('t')
+
+    # velocity
     # plt.figure()
     # plt.plot(t[1:], traj['dx'])
     # plt.plot(t[1:], traj['dy'])
@@ -584,14 +625,19 @@ if __name__ == '__main__':
     # plt.legend(['dx', 'dy', 'dz'])
     # plt.xlabel('t')
     #
-    # # acceleration
+    # acceleration
     # plt.figure()
     # plt.plot(t[2:], traj['ddx'])
     # plt.plot(t[2:], traj['ddy'])
     # plt.plot(t[2:], traj['ddz'])
     # plt.legend(['ddx', 'ddy', 'ddz'])
-    # plt.xlabel('t')
 
+    # plt.show()
+    plt.figure()
+    plt.plot(t, traj['x'])
+    plt.plot(t, traj['dx'])
+    plt.plot(t, traj['ddx'])
+    plt.legend(['x', 'dx', 'ddx'])
     plt.show()
 
     exit()
