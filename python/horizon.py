@@ -5,6 +5,21 @@ import warnings
 from collections import OrderedDict
 import time
 
+def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
+    root = dct._OrderedDict__root
+    first = root[1]
+
+    if key in dct:
+        link = dct._OrderedDict__map[key]
+        link_prev, link_next, _ = link
+        link_prev[1] = link_next
+        link_next[0] = link_prev
+        link[0] = root
+        link[1] = first
+        root[1] = first[0] = link
+    else:
+        root[1] = first[0] = dct._OrderedDict__map[key] = [root, first, key]
+        dict_setitem(dct, key, value)
 
 def casadi_sum(x, axis=None, out=None):
     assert out is None
@@ -60,8 +75,8 @@ class Problem:
 
         self.ct = Constraint(self.N)
 
-        self.var_opt_prev = dict()
-        self.var_opt = dict()
+        self.var_opt_prev = OrderedDict()
+        self.var_opt = OrderedDict()
         self.fun_opt = dict()
 
         self.var_dim = dict()
@@ -73,7 +88,7 @@ class Problem:
         self.j = 0
 
         # symbolic variables of the problems (without past variables) and their dimension
-        self.prb_vars = dict()
+        self.prb_vars = OrderedDict()
 
     def setVariable(self, name, var_dim, k_node=[]):
 
@@ -106,7 +121,6 @@ class Problem:
     def buildProblem(self):
 
         self.w0 = list()
-
 
         for name, var in self.var_opt.items():
             if name.find('-') == -1:
@@ -164,6 +178,7 @@ class Problem:
 
         self.ct.addConstraintBounds()
 
+
         w = cs.vertcat(*[item['var'] for sublist in self.state_var for item in sublist])
         self.lbw = [item for sublist in [item['lbw'] for sublist in self.state_var for item in sublist] for item in sublist]
         self.ubw = [item for sublist in [item['ubw'] for sublist in self.state_var for item in sublist] for item in sublist]
@@ -179,15 +194,15 @@ class Problem:
 
     def solveProblem(self, w, g):
 
-        # print('================')
-        # print('w:', w.shape)
-        # print('lbw:', len(self.lbw))
-        # print('ubw:', len(self.ubw))
-        # print('w0:', len(self.w0))
-        #
-        # print('g:', g.shape)
-        # print('lbg:', len(self.ct.lbg))
-        # print('ubg:', len(self.ct.ubg))
+        print('================')
+        print('w:', w.shape)
+        print('lbw:', len(self.lbw))
+        print('ubw:', len(self.ubw))
+        print('w0:', len(self.w0))
+
+        print('g:', g.shape)
+        print('lbg:', len(self.ct.lbg))
+        print('ubg:', len(self.ct.ubg))
         #
         # print('================')
         # print('w:', w)
@@ -211,7 +226,6 @@ class Problem:
         w_opt = sol['x'].full().flatten()
 
         return w_opt
-        # print(w_opt)
 
     def updateVariables(self, k):
 
@@ -328,16 +342,22 @@ class Problem:
     def getOptimizedVariables(self, w_opt):
 
         # #todo hacky hack to split x into p, v, a
+
         prb_vars_ordered = OrderedDict(self.prb_vars)
 
 
         if 'x' in prb_vars_ordered:
             del prb_vars_ordered['x']
-            prb_vars_ordered.update(p=(2, 1), v=(2, 1), a=(2, 1))
-            prb_vars_ordered.move_to_end('a', last=False)
-            prb_vars_ordered.move_to_end('v', last=False)
-            prb_vars_ordered.move_to_end('p', last=False)
+            #
+            ordered_dict_prepend(prb_vars_ordered, 'a', (2, 1))
+            ordered_dict_prepend(prb_vars_ordered, 'v', (2, 1))
+            ordered_dict_prepend(prb_vars_ordered, 'p', (2, 1))
 
+            # with python >3.2
+            # prb_vars_ordered.update(p=(2, 1), v=(2, 1), a=(2, 1))
+            # prb_vars_ordered.move_to_end('a', last=False)
+            # prb_vars_ordered.move_to_end('v', last=False)
+            # prb_vars_ordered.move_to_end('p', last=False)
 
         # todo careful about ordering
         # filling arrays with zeros
