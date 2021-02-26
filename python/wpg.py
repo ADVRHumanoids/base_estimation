@@ -145,8 +145,6 @@ class Stepper:
         self.g += [Gk]
         self.lbg += LBGk
         self.ubg += UBGk
-        print('g:', Gk)
-        print('\n')
 
     def addStance(self, zmp, wft_l_vert, wft_r_vert, k, stance, X):
 
@@ -179,10 +177,8 @@ class Stepper:
         elif stance == 'D':
             # double stance -->
             # zmp must stay inside sole L and R
-            print('adding zmp')
             self.addConstraint(zmp - (self.casadi_sum(wft_l_vert, 0).T + self.casadi_sum(wft_r_vert, 0).T), [0, 0], [0, 0])
 
-            print('adding alphas')
             # alpha (weights on vertices) must be 1 for stance leg + swing leg
             self.addConstraint(self.casadi_sum(X[k][10:18], 0), [1.], [1.])
 
@@ -213,7 +209,6 @@ class Stepper:
             xk = self.sym_c.sym('X_' + str(k), self.z.size()[0])
             X.append(xk)
 
-            print('======== node {} ============'.format(k))
             if k == 0:  # at the beginning, position, velocity and acceleration to ZERO
                 self.lbw += [initial_com[0, 0], initial_com[0, 1],  # com pos
                              initial_com[1, 0], initial_com[1, 1],  # com vel
