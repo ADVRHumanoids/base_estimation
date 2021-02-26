@@ -3,6 +3,7 @@ import casadi as cs
 import numpy as np
 import warnings
 from collections import OrderedDict
+import math
 import time
 
 def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
@@ -20,6 +21,63 @@ def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
     else:
         root[1] = first[0] = dct._OrderedDict__map[key] = [root, first, key]
         dict_setitem(dct, key, value)
+
+def interpolator(step_i, step_f, step_height, time, t_i, t_f, freq):
+
+    traj = dict()
+    traj_tot = float(freq) * float(time)
+    traj_len = float(freq) * float(t_f - t_i)
+    traj_len_before = float(freq) * float(t_i)
+    traj_len_after = float(freq) * float(time-t_f)
+    dt = 1. / float(freq)
+
+    traj['x'] = np.full(traj_len_before, step_i[0])
+    traj['y'] = np.full(traj_len_before, step_i[1])
+    traj['z'] = np.full(traj_len_before, 0.)
+
+    traj['dx'] = np.full(traj_len_before, 0.)
+    traj['dy'] = np.full(traj_len_before, 0.)
+    traj['dz'] = np.full(traj_len_before, 0.)
+
+    traj['ddx'] = np.full(traj_len_before, 0.)
+    traj['ddy'] = np.full(traj_len_before, 0.)
+    traj['ddz'] = np.full(traj_len_before, 0.)
+
+    t = np.linspace(0, 1, math.ceil(traj_len))
+
+    traj['x'] = np.append(traj['x'], (step_i[0] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[0] - step_i[0])))  # on the x
+    traj['y'] = np.append(traj['y'], (step_i[1] + (((6 * t - 15) * t + 10) * t ** 3) * (step_f[1] - step_i[1]))) # on the y
+    traj['z'] = np.append(traj['z'], (64 * t ** 3. * (1 - t) ** 3) * step_height) # on the z
+
+
+    traj['x'] = np.append(traj['x'], np.full(traj_len_after, step_f[0]))
+    traj['y'] = np.append(traj['y'], np.full(traj_len_after, step_f[1]))
+    traj['z'] = np.append(traj['z'], np.full(traj_len_after, 0.))
+
+
+    # compute velocity
+    traj['dx'] = np.append(traj['dx'], 30 * (t - 1) ** 2 * t ** 2 * (step_f[0] - step_i[0]))
+    traj['dy'] = np.append(traj['dy'], 30 * (t - 1) ** 2 * t ** 2 * (step_f[1] - step_i[1]))
+    traj['dz'] = np.append(traj['dz'], step_height * (t - 1) ** 2 * (t ** 2.0 * (192.0 - 192.0 * t) - 192 * t ** 3.0))
+
+    traj['dx'] = np.append(traj['dx'], np.full(traj_len_after, 0.))
+    traj['dy'] = np.append(traj['dy'], np.full(traj_len_after, 0.))
+    traj['dz'] = np.append(traj['dz'], np.full(traj_len_after, 0.))
+
+    # computeration
+    traj['ddx'] = np.append(traj['ddx'], 60 * t * (2 * t ** 2 - 3 * t + 1) * (step_f[0] - step_i[0]))
+    traj['ddy'] = np.append(traj['ddy'], 60 * t * (2 * t ** 2 - 3 * t + 1) * (step_f[1] - step_i[1]))
+    traj['ddz'] = np.append(traj['ddz'], step_height * (384.0 * t ** 1.0 - 2304.0 * t ** 2.0 + 3840.0 * t ** 3.0 - 1920.0 * t ** 4.0))
+
+    traj['ddx'] = np.append(traj['ddx'], np.full(traj_len_after, 0.))
+    traj['ddy'] = np.append(traj['ddy'], np.full(traj_len_after, 0.))
+    traj['ddz'] = np.append(traj['ddz'], np.full(traj_len_after, 0.))
+
+    # small hack for t filling
+    t = np.linspace(0, 1, len(traj['x']))
+
+    return t, traj
+
 
 def casadi_sum(x, axis=None, out=None):
     assert out is None
