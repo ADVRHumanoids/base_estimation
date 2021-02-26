@@ -153,18 +153,20 @@ class CartesianInterfaceSolver:
     def getTasks(self):
         return self.ctrl_tasks, self.com
 
-    def sendTrajectory(self, task, traj, sim=0):
+    def sendTrajectory(self, task, pos=None, vel=None, sim=0):
 
         q = np.empty(shape=[self.model.getJointNum(), 0])
-
-        task.setActivationState(pyci.ActivationState.Enabled)
 
         unable_to_solve = 0
         ci_time = 0.0
 
         UNABLE_TO_SOLVE_MAX = 5
 
-        task.setPoseReference(traj)
+        if pos:
+            task.setPoseReference(pos)
+
+        if vel:
+            task.setVelocityReference(vel)
 
         if not self.__ci_solve_integrate(ci_time, sim):
             print('Unable to solve!!!')
