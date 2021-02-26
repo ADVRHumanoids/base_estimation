@@ -101,6 +101,7 @@ multiplier = 2
 dt_int = stp.T / stp.N / 1 / multiplier
 integrator = stp.RK4(1, 1, dt_int)
 #
+
 for i in range(len(com_states)):
     for multi_i in range(multiplier):
         Fk = integrator(x0=com_interpol[:, -1], p=com_states[i]['j'])
@@ -113,10 +114,12 @@ com_traj_y = com_interpol[1, :].full().flatten()
 
 t, l_foot_traj = stp.interpolator(step_i=feet_states[0]['l'], step_f=feet_states[1]['l'], step_height=0.05, time=T_total, t_i =initial_ds, t_f=initial_ds+ss_1, freq=freq)
 
-
 lfoot = Affine3()
 lfoot.translation = l_foot_initial.translation
 lfoot.linear = l_foot_initial.linear
+
+dlfoot = Affine3()
+
 
 com = Affine3()
 com.translation = com_initial
@@ -134,6 +137,8 @@ i = 0
 rate = rospy.Rate(freq)
 #lambda
 
+com_task.setActivationState(pyci.ActivationState.Enabled)
+ctrl_tasks[0].setActivationState(pyci.ActivationState.Enabled)
 
 i = 0
 while t < (intial_t + T_total):
@@ -143,12 +148,19 @@ while t < (intial_t + T_total):
     lfoot.translation[1] = l_foot_traj['y'][i]
     lfoot.translation[2] = l_foot_initial.translation[2] + l_foot_traj['z'][i]
 
+    dlfoot.translation[0] = l_foot_traj['dx'][i]
+    dlfoot.translation[1] = l_foot_traj['dy'][i]
+    dlfoot.translation[2] = l_foot_initial.translation[2] + l_foot_traj['dz'][i]
+
+
     # set com trajectory
     com.translation[0] = com_traj_x[i]
     com.translation[1] = com_traj_y[i]
 
-    ci_solver.sendTrajectory(com_task, com, sim=0)
-    ci_solver.sendTrajectory(ctrl_tasks[0], lfoot, sim=0)
+
+    # TODO add velocity reference!
+    ci_solver.sendTrajectory(com_task, pos=com, sim=0)
+    ci_solver.sendTrajectory(ctrl_tasks[0], pos=lfoot,  sim=0) #vel=dlfoot,
 
 
     # print('LEFT FOOT:')
@@ -160,8 +172,6 @@ while t < (intial_t + T_total):
     # print('sensed:', model.getCOM())
 
     # print('\n')
-
-
 
     t += 1./freq
     i += 1
