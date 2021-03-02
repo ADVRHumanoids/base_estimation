@@ -54,27 +54,25 @@ class CartesianInterfaceSolver:
 
         ik_cfg['solver_options'] = {'regularization': 1e-4, 'back-end': 'osqp'}
 
-        ik_cfg['stack'] = [
-            self.ctrl_points.values(), ['com'], ['postural']
-        ]
+        ik_cfg['stack'] = [self.ctrl_points.values(), ['com'], ['postural']]
 
         ik_cfg['postural'] = {
             'name': 'postural',
             'type': 'Postural',
-            'lambda': 0.01,
+            'lambda': 0.1,
         }
 
         ik_cfg['com'] = {
             'name': 'com',
             'type': 'Com',
-            'lambda': 1,
+            'lambda': 0.1,
         }
 
         for c in self.ctrl_points.values():
             ik_cfg[c] = {
                 'type': 'Cartesian',
                 'distal_link': c,
-                'lambda': 1
+                'lambda': 0.1
             }
 
         ik_str = yaml.dump(ik_cfg)
@@ -82,7 +80,6 @@ class CartesianInterfaceSolver:
         return ik_str
 
     def __ci_solve_integrate(self, t, sim):
-
         # integrate model
         if not self.ci.update(t, self.ik_dt):
             return False
@@ -119,13 +116,13 @@ class CartesianInterfaceSolver:
         CONVERGENCE_TIME = 5.
         UNABLE_TO_SOLVE_MAX = 5
 
-        task.setPoseTarget(goal, duration)
+        task.setPoseTarget(goal, duration, sim=0)
 
         while task.getTaskState() == pyci.State.Reaching or time_from_reaching <= CONVERGENCE_TIME:
 
             q = np.hstack((q, self.model.getJointPosition().reshape(self.model.getJointNum(), 1)))
 
-            if not self.__ci_solve_integrate(ci_time):
+            if not self.__ci_solve_integrate(ci_time, sim):
                 print('Unable to solve!!!')
                 unable_to_solve += 1
                 print(unable_to_solve)
@@ -153,21 +150,11 @@ class CartesianInterfaceSolver:
     def getTasks(self):
         return self.ctrl_tasks, self.com
 
-    def sendTrajectory(self, task, pos=None, vel=None, sim=0):
+    def update(self, ci_time, sim=0):
 
         q = np.empty(shape=[self.model.getJointNum(), 0])
-
         unable_to_solve = 0
-        ci_time = 0.0
-
         UNABLE_TO_SOLVE_MAX = 5
-
-        if pos:
-            task.setPoseReference(pos)
-
-        if vel:
-            task.setVelocityReference(vel)
-
         if not self.__ci_solve_integrate(ci_time, sim):
             print('Unable to solve!!!')
             unable_to_solve += 1
@@ -179,8 +166,6 @@ class CartesianInterfaceSolver:
                 return q, False
         else:
             unable_to_solve = 0
-
-        ci_time += self.ik_dt
 
         self.rspub.publishTransforms('ci')
 
