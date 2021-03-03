@@ -247,9 +247,16 @@ class Problem:
         # w[1::2] = U
         g = self.ct.getConstraints()
 
+        J = self.j
+
+        prob = {'f': J, 'x': w, 'g': g}
+        self.solver = cs.nlpsol('solver', 'ipopt', prob,
+                           {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
+                            'print_time': 0})  # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
+
         return w, g
 
-    def solveProblem(self, w, g):
+    def solveProblem(self):
 
         # print('================')
         # print('w:', w.shape)
@@ -270,15 +277,9 @@ class Problem:
         # print('ubg:', self.ct.ubg)
         # print('j:', self.j)
 
-        J = self.j
-
-        prob = {'f': J, 'x': w, 'g': g}
-        solver = cs.nlpsol('solver', 'ipopt', prob,
-                           {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
-                            'print_time': 0})  # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
 
         # Solve the NLP
-        sol = solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.ct.lbg, ubg=self.ct.ubg)
+        sol = self.solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.ct.lbg, ubg=self.ct.ubg)
 
         w_opt = sol['x'].full().flatten()
 
@@ -730,7 +731,7 @@ if __name__ == '__main__':
     # 1000. * sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
     prb.setCostFunction('one_cost_function', fun_opt['zmp'][0] - var_opt['x'][2])
 
-    w, g = prb.buildProblem()
+    problem = prb.buildProblem()
 
     prb.setStateBoundsFromName(name='x', nodes=[0, 3], lbw=[0, 0, 0, 0, 0, 0], ubw=[0, 0, 0, 0, 0, 0])
 
@@ -748,5 +749,5 @@ if __name__ == '__main__':
 
     # x and u should be always present
 
-    w_opt = prb.solveProblem(w, g)
+    w_opt = prb.solveProblem()
 
