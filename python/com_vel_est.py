@@ -24,10 +24,24 @@ class FloatingBase:
         rospy.Subscriber("/odometry/base_link/pose", PoseStamped, self._fbPoseCallback)
         rospy.Subscriber("/odometry/base_link/twist", TwistStamped, self._fbTwistCallback)
 
-        rospy.wait_for_message("/odometry/base_link/pose", PoseStamped)
-        rospy.wait_for_message("/odometry/base_link/twist", TwistStamped)
-        #
-        # print('porcpdioo', self.fb_pose)
+        pos_msg = rospy.wait_for_message("/odometry/base_link/pose", PoseStamped)
+
+        print(pos_msg)
+        self.fb_pose.translation[0] = pos_msg.pose.position.x
+        self.fb_pose.translation[1] = pos_msg.pose.position.y
+        self.fb_pose.translation[2] = pos_msg.pose.position.z
+        o = pos_msg.pose.orientation
+        self.fb_pose.quaternion = [o.x, o.y, o.z, o.w]
+
+
+        vel_msg = rospy.wait_for_message("/odometry/base_link/twist", TwistStamped)
+
+        self.fb_twist[0] = vel_msg.twist.linear.x
+        self.fb_twist[1] = vel_msg.twist.linear.y
+        self.fb_twist[2] = vel_msg.twist.linear.z
+        self.fb_twist[3] = vel_msg.twist.angular.x
+        self.fb_twist[4] = vel_msg.twist.angular.y
+        self.fb_twist[5] = vel_msg.twist.angular.z
 
 
     def _fbPoseCallback(self, data):
@@ -36,13 +50,12 @@ class FloatingBase:
         self.fb_pose.translation[1] = data.pose.position.y
         self.fb_pose.translation[2] = data.pose.position.z
 
-        self.fb_pose.quaternion[0] = data.pose.orientation.x
-        self.fb_pose.quaternion[1] = data.pose.orientation.y
-        self.fb_pose.quaternion[2] = data.pose.orientation.z
-        self.fb_pose.quaternion[3] = data.pose.orientation.w
+        o = data.pose.orientation
+        self.fb_pose.quaternion = [o.x, o.y, o.z, o.w]
 
 
     def _fbTwistCallback(self, data):
+
         self.fb_twist[0] = data.twist.linear.x
         self.fb_twist[1] = data.twist.linear.y
         self.fb_twist[2] = data.twist.linear.z
@@ -50,10 +63,7 @@ class FloatingBase:
         self.fb_twist[4] = data.twist.angular.y
         self.fb_twist[5] = data.twist.angular.z
 
-
-
     def getFbPose(self):
-
         return self.fb_pose
 
     def getFbTwist(self):
