@@ -22,13 +22,18 @@ def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
         root[1] = first[0] = dct._OrderedDict__map[key] = [root, first, key]
         dict_setitem(dct, key, value)
 
-def interpolator(step_i, step_f, step_height, time, t_i, t_f, freq):
+def interpolator(traj_old, step_i, step_f, step_height, time, t_i, t_f, freq):
 
     traj = dict()
-    traj_tot = float(freq) * float(time)
-    traj_len = float(freq) * float(t_f - t_i)
-    traj_len_before = float(freq) * float(t_i)
-    traj_len_after = float(freq) * float(time-t_f)
+    # print('traj_old', traj_old.shape)
+    traj_len = np.ceil(float(freq) * float(t_f - t_i))
+    # print('traj_len', traj_len)
+    traj_len_before = np.ceil(float(freq) * float(t_i))
+    # print('traj_len_before', traj_len_before)
+    traj_len_after = np.ceil(float(freq) * float(time-t_f)) + 1 # todo for now is N+1 so traj_len_after lasts 1 node more
+    # print('traj_len_after', traj_len_after)
+
+    t = np.linspace(0, 1, np.ceil(traj_len))
     dt = 1. / float(freq)
 
     traj['x'] = np.full(traj_len_before, step_i[0])
@@ -42,9 +47,6 @@ def interpolator(step_i, step_f, step_height, time, t_i, t_f, freq):
     traj['ddx'] = np.full(traj_len_before, 0.)
     traj['ddy'] = np.full(traj_len_before, 0.)
     traj['ddz'] = np.full(traj_len_before, 0.)
-
-    t = np.linspace(0, 1, math.ceil(traj_len))
-
 
     traj['x'] = np.append(traj['x'], (step_i[0] + (((6. * t - 15.) * t + 10.) * t ** 3.) * (step_f[0] - step_i[0])))  # on the x
     traj['y'] = np.append(traj['y'], (step_i[1] + (((6. * t - 15.) * t + 10.) * t ** 3.) * (step_f[1] - step_i[1]))) # on the y
@@ -122,7 +124,7 @@ class Problem:
 
     def __init__(self, N):
 
-        self.N = N+1
+        self.N = N+1 # todo here decide if N or N+1
         self.x = list()
         self.u = list()
         self.lbw = list()
