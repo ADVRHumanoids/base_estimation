@@ -54,11 +54,27 @@ class CartesianInterfaceSolver:
 
         ik_cfg['solver_options'] = {'regularization': 1e-4, 'back-end': 'osqp'}
 
-        ik_cfg['stack'] = [self.ctrl_points.values(), ['com'], ['postural']]
+        ik_cfg['stack'] = [self.ctrl_points.values(), ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
 
         ik_cfg['postural'] = {
             'name': 'postural',
             'type': 'Postural',
+            'lambda': 0.1,
+        }
+
+        ik_cfg['r_ball_tip'] = {
+            'name': 'r_ball_tip',
+            'type': 'Cartesian',
+            'distal_link': 'r_ball_tip',
+            'base_link': 'torso',
+            'lambda': 0.1,
+        }
+
+        ik_cfg['l_ball_tip'] = {
+            'name': 'l_ball_tip',
+            'type': 'Cartesian',
+            'distal_link': 'l_ball_tip',
+            'base_link': 'torso',
             'lambda': 0.1,
         }
 
