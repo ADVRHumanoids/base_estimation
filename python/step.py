@@ -208,6 +208,7 @@ class StepSolver:
         self.stepPattern(prb_vars, prb_funs, 0, ds_n_1, 'D')
         self.stepPattern(prb_vars, prb_funs, ds_n_1, ss_n_1, 'L')
         self.stepPattern(prb_vars, prb_funs, ss_n_1, ds_n_3, 'D')
+        # self.stepPattern(prb_vars, prb_funs, ss_n_1, ds_n_2, 'D')
         # self.stepPattern(prb_vars, prb_funs, ds_n_2, ss_n_2, 'R')
         # self.stepPattern(prb_vars, prb_funs, ss_n_2, ds_n_3, 'D')
 
@@ -300,14 +301,14 @@ class StepSolver:
 
 def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=0, unroll=0):
 
-    solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
-    solver.buildProblemStep()
     initial_com_vel = 0.4
-
     height_com = model.getCOM()[2] - model.getPose(ctrl_tasks[0].getName()).translation[2]
     initial_com = np.array([[model.getCOM()[0], model.getCOM()[1]], [initial_com_vel, 0], [0., 0.]])
     initial_l_foot = np.array([model.getPose(ctrl_tasks[0].getName()).translation[0], model.getPose(ctrl_tasks[0].getName()).translation[1], 0.])
     initial_r_foot = np.array([model.getPose(ctrl_tasks[1].getName()).translation[0], model.getPose(ctrl_tasks[1].getName()).translation[1], 0.])
+
+    solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
+    solver.buildProblemStep()
 
     # print('initial_com:', initial_com)
     # print('initial_l_foot:', initial_l_foot)
