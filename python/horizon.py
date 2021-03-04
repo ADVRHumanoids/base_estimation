@@ -142,6 +142,10 @@ class Problem:
 
         # all the variables in the problem for all the nodes
         self.state_var = list()
+        self.w0_list = list()
+
+        self.w0 = np.array([])
+
         self.j = 0
 
         # symbolic variables of the problems (without past variables) and their dimension
@@ -177,8 +181,6 @@ class Problem:
 
     def buildProblem(self):
 
-        self.w0 = list()
-
         for name, var in self.var_opt.items():
             if name.find('-') == -1:
                 self.prb_vars[name] = var.shape
@@ -188,6 +190,7 @@ class Problem:
             # print('----- node', k, '-----')
 
             state_var_k = list()
+            w0_k = dict()
 
             self.updateVariables(k)
 
@@ -195,15 +198,18 @@ class Problem:
                 if var.find('-') == -1:
                     if k != self.N-1:
                         state_var_k.append(dict(name=var, var=self.var_opt[var], lbw=[-cs.inf] * self.var_opt[var].shape[0], ubw=[cs.inf] * self.var_opt[var].shape[0]))
-                        self.w0 = np.append(self.w0, np.zeros((self.var_opt[var].shape[0])))
+                        w0_k.update({var: np.zeros((self.var_opt[var].shape[0]))})
                     else: # todo very hacky remove last input
                         if var == 'u':
                             pass
                         else:
                             state_var_k.append(dict(name=var, var=self.var_opt[var], lbw=[-cs.inf] * self.var_opt[var].shape[0], ubw=[cs.inf] * self.var_opt[var].shape[0]))
-                            self.w0 = np.append(self.w0, np.zeros((self.var_opt[var].shape[0])))
+                            w0_k.update({var: np.zeros((self.var_opt[var].shape[0]))})
+                            # w0_k.append(self.w0, np.zeros((self.var_opt[var].shape[0])))
+
 
             self.state_var.append(state_var_k)
+            self.w0_list.append(w0_k)
 
             # todo remove last input
             # todo make possible to define what to include in state variable and what not
@@ -233,10 +239,12 @@ class Problem:
                     if k in range(self.j_dict[cost_fun]['nodes'][0], self.j_dict[cost_fun]['nodes'][1]):
                         self.addCostFunction(cost_fun)
 
+        # todo this is useless here! to place in solve problem, not in build problem
         self.ct.addConstraintBounds()
 
-
+        self.addInitialGuess()
         w = cs.vertcat(*[item['var'] for sublist in self.state_var for item in sublist])
+
         self.lbw = [item for sublist in [item['lbw'] for sublist in self.state_var for item in sublist] for item in sublist]
         self.ubw = [item for sublist in [item['ubw'] for sublist in self.state_var for item in sublist] for item in sublist]
 
@@ -276,7 +284,6 @@ class Problem:
         # print('lbg:', self.ct.lbg)
         # print('ubg:', self.ct.ubg)
         # print('j:', self.j)
-
 
         # Solve the NLP
         sol = self.solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.ct.lbg, ubg=self.ct.ubg)
@@ -336,6 +343,7 @@ class Problem:
 
     def setCostFunction(self, name, j, nodes=None):
 
+        # TODO check if variable exists in nodes (BUG: if added from node 0 the variable x-1, it does NOT give error)
         used_var = dict()
         # select from all variables only the variables used by the added constrain function
         for name_var, var in list(self.var_opt.items()):
@@ -449,6 +457,25 @@ class Problem:
                 j += 1
 
         return opt_values
+
+    def setInitialGuess(self, name, nodes, vals):
+        if isinstance(nodes, list):
+            for node in range(nodes[0], nodes[1]):
+                self.w0_list[node][name] = vals
+        elif isinstance(nodes, int):
+            self.w0_list[nodes][name] = vals
+
+        print(self.w0_list)
+        self.addInitialGuess()
+
+    def addInitialGuess(self):
+
+        self.w0 = np.array([])
+        for node_k in self.w0_list:
+            # concatenate all the var in the node
+            to_append = np.concatenate([np.array(val) for name, val in node_k.items()])
+            # concatenate the node with all the others
+            self.w0 = np.concatenate([self.w0, to_append])
 
 class Constraint:
 
@@ -732,6 +759,10 @@ if __name__ == '__main__':
     prb.setCostFunction('one_cost_function', fun_opt['zmp'][0] - var_opt['x'][2])
 
     problem = prb.buildProblem()
+
+    # todo add check for lenght of value inserted
+    # todo add check for lenght of nodes inserted
+    prb.setInitialGuess('u', [0,N], [1, 1])
 
     prb.setStateBoundsFromName(name='x', nodes=[0, 3], lbw=[0, 0, 0, 0, 0, 0], ubw=[0, 0, 0, 0, 0, 0])
 
