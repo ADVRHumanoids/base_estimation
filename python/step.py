@@ -153,7 +153,7 @@ class StepSolver:
 
     def buildProblemStep(self):
 
-        self.prb = Problem(self.N)
+        self.prb = Problem(self.N, crash_if_suboptimal=True)
 
         self.prb.setVariable('x', 6)
         self.prb.setVariable('x-1', 6)

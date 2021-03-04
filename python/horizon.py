@@ -23,7 +23,7 @@ def ordered_dict_prepend(dct, key, value, dict_setitem=dict.__setitem__):
         dict_setitem(dct, key, value)
 
 def interpolator(traj_old, step_i, step_f, step_height, time, t_i, t_f, freq):
-
+    # todo do something with the traj_old
     traj = dict()
     # print('traj_old', traj_old.shape)
     traj_len = np.ceil(float(freq) * float(t_f - t_i))
@@ -122,8 +122,9 @@ def RK4(M, L, x, u, xdot, dt):
 
 class Problem:
 
-    def __init__(self, N):
+    def __init__(self, N, crash_if_suboptimal=False):
 
+        self.crash_if_suboptimal = crash_if_suboptimal
         self.N = N+1 # todo here decide if N or N+1
         self.x = list()
         self.u = list()
@@ -289,6 +290,10 @@ class Problem:
 
         # Solve the NLP
         sol = self.solver(x0=self.w0, lbx=self.lbw, ubx=self.ubw, lbg=self.ct.lbg, ubg=self.ct.ubg)
+
+        if self.crash_if_suboptimal:
+            if not self.solver.stats()['success']:
+                raise Exception('Optimal solution NOT found.')
 
         w_opt = sol['x'].full().flatten()
 
@@ -700,7 +705,7 @@ class Constraint:
 
 if __name__ == '__main__':
     N = 5
-    prb = Problem(N)
+    prb = Problem(N, crash_if_suboptimal=True)
     h = 1
     grav = 9.8
 
