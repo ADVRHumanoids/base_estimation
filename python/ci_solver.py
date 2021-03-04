@@ -101,7 +101,7 @@ class CartesianInterfaceSolver:
 
         return True
 
-    def reach(self, task, goal, duration):
+    def reach(self, task, goal, duration, sim=0):
 
         ## Cartesian part
         q = np.empty(shape=[self.model.getJointNum(), 0])
@@ -116,7 +116,7 @@ class CartesianInterfaceSolver:
         CONVERGENCE_TIME = 5.
         UNABLE_TO_SOLVE_MAX = 5
 
-        task.setPoseTarget(goal, duration, sim=0)
+        task.setPoseTarget(goal, duration)
 
         while task.getTaskState() == pyci.State.Reaching or time_from_reaching <= CONVERGENCE_TIME:
 
