@@ -109,6 +109,48 @@ class StepSolver:
 
         return ft_vert
 
+    def stepPattern(self, prb_vars, prb_funs, initial_n, final_n, type_leg):
+
+        if type_leg == 'D':
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_zmp_stab', prb_funs['zmp'] - (
+                    casadi_sum(prb_funs['wl_vert'], 0).T + casadi_sum(prb_funs['wr_vert'], 0).T),
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_contacts',
+                                              casadi_sum(prb_vars['alpha_l'], 0).T + casadi_sum(prb_vars['alpha_r'], 0).T,
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[1.], ubg=[1.]))
+            if initial_n == 0:
+                initial_n = 1
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_l_foot', prb_vars['l'] - prb_vars['l-1'], nodes=[initial_n, final_n],
+                                              bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_r_foot', prb_vars['r'] - prb_vars['r-1'], nodes=[initial_n, final_n],
+                                              bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+
+        else:
+            if type_leg.lower() == 'r':
+                other_leg = 'l'
+            else:
+                other_leg = 'r'
+
+            stance_w_vert = 'w' + other_leg + '_vert'
+            stance_alpha = 'alpha_' + type_leg.lower()
+            swing_alpha = 'alpha_' + other_leg
+            fixed_foot = other_leg
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_zmp_stab', prb_funs['zmp'] - casadi_sum(prb_funs[stance_w_vert], 0).T,
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_contacts_' + stance_alpha, casadi_sum(prb_vars[stance_alpha], 0).T,
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[0.], ubg=[0.]))
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_contacts_' + swing_alpha, casadi_sum(prb_vars[swing_alpha], 0).T,
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[1.], ubg=[1.]))
+
+            self.prb.ct.setConstraintFunction(type_leg + '_' + str(final_n) + '_r_foot', prb_vars[fixed_foot] - prb_vars[fixed_foot + '-1'],
+                                              nodes=[initial_n, final_n], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+
+
     def buildProblemStep(self):
 
         self.prb = Problem(self.N)
@@ -151,75 +193,32 @@ class StepSolver:
         ss_n_1 = self.ds_1 + self.ss_1_n + 1
         ds_n_2 = self.ss_1 + self.ds_1_n + 1
         ss_n_2 = self.ds_2 + self.ss_2_n + 1
+        ds_n_3 = self.N + 1
+
 
         # todo remember that the last node is N+1! change something
         # add constraints
         self.prb.ct.setConstraintFunction('multiple_shooting', prb_funs['x_int']['xf'] - prb_vars['x'], nodes=[1, self.N + 1],
                                      bounds=dict(ubg=[0., 0., 0., 0., 0., 0.], lbg=[0., 0., 0., 0., 0., 0.]))
-        self.prb.ct.setConstraintFunction('stride', prb_vars['l'] - prb_vars['r'],
-                                     bounds=dict(lbg=[-self.max_stride_x, -self.max_stride_y], ubg=[self.max_stride_x, self.max_stride_y]))
+        # self.prb.ct.setConstraintFunction('stride', prb_vars['l'] - prb_vars['r'],
+        #                              bounds=dict(lbg=[-self.max_stride_x, -self.max_stride_y], ubg=[self.max_stride_x, self.max_stride_y]))
 
-        # # double stance
-        self.prb.ct.setConstraintFunction('ds1_zmp_stab', prb_funs['zmp'] - (
-                    casadi_sum(prb_funs['wl_vert'], 0).T + casadi_sum(prb_funs['wr_vert'], 0).T),
-                                     nodes=[0, ds_n_1], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds1_contacts',
-                                     casadi_sum(prb_vars['alpha_l'], 0).T + casadi_sum(prb_vars['alpha_r'], 0).T,
-                                     nodes=[0, ds_n_1], bounds=dict(lbg=[1.], ubg=[1.]))
-        self.prb.ct.setConstraintFunction('ds1_l_foot', prb_vars['l'] - prb_vars['l-1'], nodes=[1, ds_n_1],
-                                     bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds1_r_foot', prb_vars['r'] - prb_vars['r-1'], nodes=[1, ds_n_1],
-                                     bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        #
-        # #single
-        self.prb.ct.setConstraintFunction('ss1_zmp_stab', prb_funs['zmp'] - casadi_sum(prb_funs['wr_vert'], 0).T,
-                                     nodes=[ds_n_1, ss_n_1], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ss1_contacts_l', casadi_sum(prb_vars['alpha_l'], 0).T,
-                                     nodes=[ds_n_1, ss_n_1], bounds=dict(lbg=[0.], ubg=[0.]))
-        self.prb.ct.setConstraintFunction('ss1_contacts_r', casadi_sum(prb_vars['alpha_r'], 0).T,
-                                     nodes=[ds_n_1, ss_n_1], bounds=dict(lbg=[1.], ubg=[1.]))
-        self.prb.ct.setConstraintFunction('ss1_r_foot', prb_vars['r'] - prb_vars['r-1'],
-                                     nodes=[ds_n_1, ss_n_1], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-
-        # # double stance ds_2 + self.ss_2_n
-        self.prb.ct.setConstraintFunction('ds2_zmp_stab', prb_funs['zmp'] - (
-                    casadi_sum(prb_funs['wl_vert'], 0).T + casadi_sum(prb_funs['wr_vert'], 0).T),
-                                     nodes=[ss_n_1, ds_n_2], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds2_contacts',
-                                     casadi_sum(prb_vars['alpha_l'], 0).T + casadi_sum(prb_vars['alpha_r'], 0).T,
-                                     nodes=[ss_n_1, ds_n_2], bounds=dict(lbg=[1.], ubg=[1.]))
-        self.prb.ct.setConstraintFunction('ds2_l_foot', prb_vars['l'] - prb_vars['l-1'],
-                                     nodes=[ss_n_1, ds_n_2], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds2_r_foot', prb_vars['r'] - prb_vars['r-1'],
-                                     nodes=[ss_n_1, ds_n_2], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        #
-        # #single stance
-        self.prb.ct.setConstraintFunction('ss2_zmp_stab', prb_funs['zmp'] - casadi_sum(prb_funs['wl_vert'], 0).T,
-                                     nodes=[ds_n_2, ss_n_2], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ss2_contacts_l', casadi_sum(prb_vars['alpha_l'], 0).T,
-                                     nodes=[ds_n_2, ss_n_2], bounds=dict(lbg=[1.], ubg=[1.]))
-        self.prb.ct.setConstraintFunction('ss2_contacts_r', casadi_sum(prb_vars['alpha_r'], 0).T,
-                                     nodes=[ds_n_2, ss_n_2], bounds=dict(lbg=[0.], ubg=[0.]))
-        self.prb.ct.setConstraintFunction('ss2_l_foot', prb_vars['l'] - prb_vars['l-1'],
-                                     nodes=[ds_n_2, ss_n_2], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        #
-        # # double stance
-        self.prb.ct.setConstraintFunction('ds3_zmp_stab', prb_funs['zmp'] - (
-                    casadi_sum(prb_funs['wl_vert'], 0).T + casadi_sum(prb_funs['wr_vert'], 0).T),
-                                     nodes=[ss_n_2, self.N + 1], bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds3_contacts',
-                                     casadi_sum(prb_vars['alpha_l'], 0).T + casadi_sum(prb_vars['alpha_r'], 0).T,
-                                     nodes=[ss_n_2, self.N + 1], bounds=dict(lbg=[1.], ubg=[1.]))
-        self.prb.ct.setConstraintFunction('ds3_l_foot', prb_vars['l'] - prb_vars['l-1'], nodes=[ss_n_2, self.N + 1],
-                                     bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
-        self.prb.ct.setConstraintFunction('ds3_r_foot', prb_vars['r'] - prb_vars['r-1'], nodes=[ss_n_2, self.N + 1],
-                                     bounds=dict(lbg=[0., 0.], ubg=[0., 0.]))
+        # self.stepPattern(prb_vars, prb_funs, 0, ds_n_3, 'D')
+        # # step pattern
+        self.stepPattern(prb_vars, prb_funs, 0, ds_n_1, 'D')
+        self.stepPattern(prb_vars, prb_funs, ds_n_1, ss_n_1, 'L')
+        self.stepPattern(prb_vars, prb_funs, ss_n_1, ds_n_3, 'D')
+        # self.stepPattern(prb_vars, prb_funs, ds_n_2, ss_n_2, 'R')
+        # self.stepPattern(prb_vars, prb_funs, ss_n_2, ds_n_3, 'D')
 
         # add cost functions
-        self.prb.setCostFunction('minimize_input', 0.001 * cs.sumsqr(prb_vars['u']), nodes=[0, self.N]) # todo trim to lenght of specific node (here 'u')
-        self.prb.setCostFunction('minimize_velocity', cs.sumsqr(prb_vars['x'][2:4]))
-        self.prb.setCostFunction('minimize_alpha', cs.sumsqr(prb_vars['alpha_l']) + cs.sumsqr(prb_vars['alpha_r']))
-        self.prb.setCostFunction('minimize_stride_y', 1000. * cs.sumsqr((prb_vars['l'][1] - prb_vars['r'][1]) - self.min_stride_y))
+        # self.prb.setCostFunction('minimize_input', 0.001 * cs.sumsqr(prb_vars['u']), nodes=[0, self.N]) # todo trim to lenght of specific node (here 'u')
+        self.prb.setCostFunction('minimize_l_motion', cs.sumsqr(prb_vars['l'] - prb_vars['l-1']), nodes=[1, self.N+1])
+        self.prb.setCostFunction('minimize_r_motion', cs.sumsqr(prb_vars['r'] - prb_vars['r-1']), nodes=[1, self.N+1])
+        # self.prb.setCostFunction('minimize_velocity', cs.sumsqr(prb_vars['x'][2:4]))
+        # self.prb.setCostFunction('minimize_zmp', 1000 * cs.sumsqr(prb_funs['zmp']))
+        # self.prb.setCostFunction('minimize_alpha', cs.sumsqr(prb_vars['alpha_l']) + cs.sumsqr(prb_vars['alpha_r']))
+        # self.prb.setCostFunction('minimize_stride_y', 1000. * cs.sumsqr((prb_vars['l'][1] - prb_vars['r'][1]) - self.min_stride_y))
 
         self.w, self.g = self.prb.buildProblem()
 
@@ -257,13 +256,15 @@ class StepSolver:
 
         self.prb.setStateBoundsFromName('u', nodes=[0, self.N + 1], lbw=[-1000., -1000.], ubw=[1000., 1000.])
 
+        # self.prb.setInitialGuess('l', nodes=[0, self.N+1], vals=[initial_l_foot[0], initial_l_foot[1]])
+        # self.prb.setInitialGuess('r', nodes=[0, self.N+1], vals=[initial_r_foot[0], initial_r_foot[1]])
 
         w_opt = self.prb.solveProblem()
         opt_values = self.prb.getOptimizedVariables(w_opt)
 
         return opt_values
 
-    def interpolateStep(self, opt_values, freq):
+    def interpolateStep(self, initial_com, opt_values, t_i, t_f, freq):
 
         # ----------------------------------------------------------
         # interpolate the CoM at a higher frequency (from 0.2 to 0.1)
@@ -289,60 +290,172 @@ class StepSolver:
 
         relevant_nodes = [0, self.ds_2 + self.ss_2_n + 1]
         # "manual interpolator
-        t, l_foot_traj = interpolator(step_i=opt_values['l'][:, relevant_nodes[0]],
+        t, l_foot_traj = interpolator(opt_values['l'],
+                                      step_i=opt_values['l'][:, relevant_nodes[0]],
                                       step_f=opt_values['l'][:, relevant_nodes[1]], step_height=0.05, time=self.T_total,
-                                      t_i=initial_ds_t, t_f=initial_ds_t + self.ss_1_t, freq=freq)
+                                      t_i=t_i, t_f=t_f, freq=freq)
 
         return com_traj, l_foot_traj
 
 
-def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t):
+def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=0, unroll=0):
 
-    height_com = 0.911506523119
     solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
+    initial_com_vel = 0.4
 
-    initial_l_foot = np.array([-0.128, 0.103, 0.])
-    initial_r_foot = np.array([-0.128, -0.103, 0.])
-    initial_com = np.array([[-0.067, 0.], [0., 0.], [0., 0.]])
+    height_com = model.getCOM()[2] - model.getPose(ctrl_tasks[0].getName()).translation[2]
+    initial_com = np.array([[model.getCOM()[0], model.getCOM()[1]], [initial_com_vel, 0], [0., 0.]])
+    initial_l_foot = np.array([model.getPose(ctrl_tasks[0].getName()).translation[0], model.getPose(ctrl_tasks[0].getName()).translation[1], 0.])
+    initial_r_foot = np.array([model.getPose(ctrl_tasks[1].getName()).translation[0], model.getPose(ctrl_tasks[1].getName()).translation[1], 0.])
+
+    # print('initial_com:', initial_com)
+    # print('initial_l_foot:', initial_l_foot)
+    # print('initial_r_foot:', initial_r_foot)
+    # initial_l_foot = np.array([-0.128, 0.103, 0.])
+    # initial_r_foot = np.array([-0.128, -0.103, 0.])
+    # initial_com = np.array([[-0.067, 0.], [0.15, 0.], [0., 0.]])
 
     opt_values = solver.solveProblemStep(initial_com, initial_l_foot, initial_r_foot)
+    com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t, initial_ds_t + single_stance_t, freq)
 
     # PLOTTING =============================================
-    plt.figure()
-    plt.clf()
-    #
-    # ######## COM ######
-    plt.plot(opt_values['p'][0], opt_values['p'][1])
+    if plot:
+        cp = opt_values['p'] + opt_values['v'] / np.sqrt(solver.grav / height_com)
+        plt.figure()
+        plt.clf()
+        # ######## COM ######
+        plt.scatter(opt_values['p'][0,0], opt_values['p'][1,0], color='r', edgecolors='r', s=60)
+        plt.scatter(opt_values['p'][0, -1], opt_values['p'][1, -1], color='r', edgecolors='k', s=60)
+        plt.plot(opt_values['p'][0], opt_values['p'][1], linewidth=2)
+        # ######## CP ######
+        plt.scatter(cp[0, 0], cp[1, 0], color='m', edgecolors='m', s=60)
+        plt.scatter(cp[0, -1], cp[1, -1], color='m', edgecolors='k', s=60)
+        plt.plot(cp[0,:], cp[1,:], color='m', linewidth=2, ls=':')
+        # ######## ZMP ######
+        zmp = list(np.array(opt_values['p']) - np.array(opt_values['a']) * (height_com / solver.grav))
+        plt.plot(zmp[0], zmp[1], linewidth=1)
 
-    # ######## ZMP ######
-    zmp = list(np.array(opt_values['p']) - np.array(opt_values['a']) * (height_com / solver.grav))
-    plt.plot(zmp[0], zmp[1], '-')
+        alphal = np.sum(opt_values['alpha_l'], 0)
+        alphar = np.sum(opt_values['alpha_r'], 0)
 
-    alphal = np.sum(opt_values['alpha_l'], 0)
-    alphar = np.sum(opt_values['alpha_r'], 0)
-    ######## LEFT foot ######
-    k = 0
-    for pos_x, pos_y in zip(opt_values['l'][0], opt_values['l'][1]):
-        if alphal[k] > 1e-6:
-            coord = solver.getEdges([pos_x, pos_y])
-            coord = cs.vertcat(coord, coord[0, :])
-            plt.plot(coord[:, 0], coord[:, 1], color='b')
-            plt.scatter(pos_x, pos_y)
-        k += 1
+        ######## LEFT foot ######
+        k = 0
+        for pos_x, pos_y in zip(opt_values['l'][0], opt_values['l'][1]):
+            if alphal[k] > 1e-6:
+                coord = solver.getEdges([pos_x, pos_y])
+                coord = cs.vertcat(coord, coord[0, :])
+                plt.plot(coord[:, 0], coord[:, 1], color='c')
+                plt.scatter(pos_x, pos_y)
+            k += 1
 
-    ######## RIGHT foot ######
-    k = 0
-    for pos_x, pos_y in zip(opt_values['r'][0], opt_values['r'][1]):
-        if alphar[k].any() > 1e-6:
-            coord = solver.getEdges([pos_x, pos_y])
-            coord = cs.vertcat(coord, coord[0, :])
-            plt.plot(coord[:, 0], coord[:, 1], color='r')
-            plt.scatter(pos_x, pos_y)
-        k += 1
+        ######## RIGHT foot ######
+        k = 0
+        for pos_x, pos_y in zip(opt_values['r'][0], opt_values['r'][1]):
+            if alphar[k].any() > 1e-6:
+                coord = solver.getEdges([pos_x, pos_y])
+                coord = cs.vertcat(coord, coord[0, :])
+                plt.plot(coord[:, 0], coord[:, 1], color='r')
+                plt.scatter(pos_x, pos_y)
+            k += 1
 
-    plt.show()
+        ######## lines connecting the steps ######
+        plt.plot([opt_values['l'][0, 0], opt_values['r'][0,0]], [opt_values['l'][1, 0], opt_values['r'][1,0]], 'k--')
+        # plt.plot([opt_values['l'][0, -1], opt_values['r'][0, -1]], [opt_values['l'][1, -1], opt_values['r'][1, -1]], 'k--')
+
+        plt.legend(['com', 'cp', 'zmp'], loc=3)
+
+        ####### ALPHA foot ######
+        plt.figure()
+        tgrid = [solver.T_total / solver.N * k for k in range(solver.N + 1)]
+        plt.title('alpha  sum')
+        plt.scatter(tgrid, alphal)
+        plt.scatter(tgrid, alphar, color='r')
+        plt.legend(['l', 'r'])
+        plt.xlabel('t')
+        plt.ylabel('weigth')
+
+        ###### com and foot traj in time ##########
+        tgrid_interp = [solver.T_total / (solver.N*2) * k for k in range((solver.N*2)+1)]
+
+        plt.figure()
+        plt.title('position')
+        plt.plot(tgrid, opt_values['p'][0, :], 'r--', linewidth=2)
+        plt.plot(tgrid_interp, com_traj['x'], 'r', linewidth=2)
+        plt.plot(tgrid, opt_values['l'][0, :], 'b--', linewidth=2)
+        plt.plot(tgrid_interp, l_foot_traj['x'], 'b', linewidth=2)
+        plt.legend(['com_opt', 'com', 'foot_opt', 'foot'], loc=3)
+
+        plt.figure()
+        plt.title('velocity')
+        plt.plot(tgrid, opt_values['v'][0, :], 'r--', linewidth=2)
+        plt.plot(tgrid_interp, com_traj['dx'], 'r', linewidth=2)
+        plt.plot(tgrid_interp, l_foot_traj['dx'], 'b', linewidth=2)
+        plt.legend(['com_vel_opt', 'com_vel', 'foot_vel'])
+
+        plt.show()
+
+    if unroll:
+
+        lfoot = Affine3()
+        dlfoot = np.zeros([6, 1])
+
+        com = Affine3()
+        com.translation = model.getCOM()
+        dcom = np.zeros([6, 1])
+
+        l_foot_h = model.getPose(ctrl_tasks[0].getName()).translation[2]
+        lfoot.linear = model.getPose(ctrl_tasks[0].getName()).linear
+
+        i = 0
+        intial_t = 0
+        t = 0
+        rate = rospy.Rate(freq)
+
+        while t < (intial_t + T_tot):
+
+            lfoot.translation[0] = l_foot_traj['x'][i]
+            lfoot.translation[1] = l_foot_traj['y'][i]
+            lfoot.translation[2] = l_foot_h + l_foot_traj['z'][i]
+
+            dlfoot[0] = l_foot_traj['dx'][i]
+            dlfoot[1] = l_foot_traj['dy'][i]
+            dlfoot[2] = l_foot_traj['dz'][i]
+
+            com.translation[0] = com_traj['x'][i]
+            com.translation[1] = com_traj['y'][i]
+
+            dcom[0] = com_traj['dx'][i]
+            dcom[1] = com_traj['dy'][i]
+
+            com_task.setPoseReference(com)
+            com_task.setVelocityReference(dcom)
+
+            ctrl_tasks[0].setPoseReference(lfoot)
+            ctrl_tasks[0].setVelocityReference(dlfoot)
+
+            ci_solver.update(t, sim=False)
+
+            t += 1. / freq
+            i += 1
+            rate.sleep()
+
     exit()
+
+def homing(duration):
+
+    # get x of robot
+    x_l_foot = model.getPose(ctrl_tasks[0].getName()).translation[0]
+    x_r_foot = model.getPose(ctrl_tasks[1].getName()).translation[0]
+
+    goal_com = Affine3()
+    # command com to reach feet x
+    if np.isclose(x_l_foot, x_r_foot, 1e-2):
+        goal_com.translation = model.getCOM()
+        goal_com.translation[0] = x_r_foot
+        ci_solver.reach(com_task, goal_com, duration, sim=1)
+    else:
+        raise Exception('l_foot ({}) and r_foot ({}) are not aligned, something is wrong'.format(x_l_foot, x_r_foot))
 
 if __name__ == '__main__':
 
@@ -352,16 +465,14 @@ if __name__ == '__main__':
     rospy.init_node('step')
     roscpp_init('step', [])
 
-    ## build optimal problem
-    initial_ds_t = 0.2
+    ## optimal problem variables
+    initial_ds_t = 0.5
     single_stance_t = 0.5
     final_ds_t = 0.4
     T_tot = initial_ds_t + single_stance_t + final_ds_t
 
     n_duration = 0.02
     freq = 100.
-
-    tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t)
 
     ## PREPARE ROBOT
     opt = xbot_opt.ConfigOptions()
@@ -379,6 +490,7 @@ if __name__ == '__main__':
     model = xbot.ModelInterface(opt)
     robot = xbot.RobotInterface(opt)
 
+    # add floating base estimation
     fb = FloatingBase()
 
     robot.sense()
@@ -395,13 +507,15 @@ if __name__ == '__main__':
 
     height_com = model.getCOM()[2] - model.getPose(ctrl_tasks[0].getName()).translation[2]
 
+    ##### HOMING OF ROBOT #####
+    homing(duration=0.5)
+
     ## CONSTRUCT OPTIMAL PROBLEM
+    tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=1, unroll=0)
+
+
     solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
-
-
-    com_task.setActivationState(pyci.ActivationState.Enabled)
-    ctrl_tasks[0].setActivationState(pyci.ActivationState.Enabled)
 
     lfoot = Affine3()
     dlfoot = np.zeros([6, 1])
@@ -415,7 +529,6 @@ if __name__ == '__main__':
     i = 0
     rate = rospy.Rate(freq)
 
-
     i = 0
     threshold = 0.2
     flag_step = False
@@ -428,13 +541,18 @@ if __name__ == '__main__':
     l_foot_initial = Affine3()
     r_foot_initial = Affine3()
 
-    print('initial_com:', model.getCOM())
+    com_task.setActivationState(pyci.ActivationState.Enabled)
+    ctrl_tasks[0].setActivationState(pyci.ActivationState.Enabled)
+
     print('started spinning...')
+
+    i = 0
+# interactive STEP
     while 1:
 
-        # model.syncFrom(robot)
-        model.setFloatingBaseState(fb.getFbPose(), fb.getFbTwist())
-        model.update()
+        # model.syncFrom(robot) # todo remove or add?
+        # model.setFloatingBaseState(fb.getFbPose(), fb.getFbTwist())
+        # model.update()
 
         # print(model.getCOM)
 
@@ -458,7 +576,7 @@ if __name__ == '__main__':
             opt_values = solver.solveProblemStep(initial_com, initial_l_foot, initial_r_foot)
             # interpolate at right frequency
 
-            com_traj, l_foot_traj = solver.interpolateStep(opt_values, freq)
+            com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t, initial_ds_t + single_stance_t, freq)
 
             # PLOTTING =============================================
             plt.figure()
@@ -534,10 +652,3 @@ if __name__ == '__main__':
         t += 1./freq
 
         rate.sleep()
-
-    #
-    #
-    #
-    #
-    #
-    #
