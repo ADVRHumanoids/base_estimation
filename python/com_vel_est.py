@@ -26,7 +26,6 @@ class FloatingBase:
 
         pos_msg = rospy.wait_for_message("/odometry/base_link/pose", PoseStamped)
 
-        print(pos_msg)
         self.fb_pose.translation[0] = pos_msg.pose.position.x
         self.fb_pose.translation[1] = pos_msg.pose.position.y
         self.fb_pose.translation[2] = pos_msg.pose.position.z
