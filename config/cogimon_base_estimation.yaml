@@ -80,7 +80,7 @@ xbotcore_plugins:
 
 # global parameters
 xbotcore_param:
-    /jm/tx_filter_autostart: {value: true, type: bool}
+    /jm/tx_filter_autostart: {value: false, type: bool} # {value: true, type: bool}
     /jm/tx_filter_cutoff: {value: 2.0, type: double}
     /jm/enable_safety: {value: false, type: bool}
     /xbot_internal/ros_io/call_timeout: {value: 1.0, type: chrono}
