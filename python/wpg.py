@@ -569,9 +569,13 @@ if __name__ == '__main__':
 
     stp = Stepper(initial_ds, ss_1, ds_1, ss_2, final_ds)
 
-    initial_l_foot = np.array([0., 0.1, 0.])
-    initial_r_foot = np.array([0., -0.1, 0.])
-    initial_com = np.array([[0., 0.], [0.4, 0.], [0., 0]])
+    initial_l_foot = np.array([-0.128, 0.103, 0.])
+    initial_r_foot = np.array([-0.128, -0.103, 0.])
+    initial_com = np.array([[-0.067, 0.], [0.0, 0.], [0., 0.]])
+
+    # initial_l_foot = np.array([0., 0.1, 0.])
+    # initial_r_foot = np.array([0., -0.1, 0.])
+    # initial_com = np.array([[0., 0.], [0.4, 0.], [0., 0]])
     height_com = 0.9
     problem, initial_guess, constraints = stp.generateProblem(initial_com=initial_com, heigth_com=height_com, l_foot=initial_l_foot,
                                                               r_foot=initial_r_foot)
@@ -643,7 +647,7 @@ if __name__ == '__main__':
         Fk_2 = stp.F(x0=x_state[:, -1], p=com_states[iter_u]['j'])
         x_state = horzcat(x_state, Fk_2['xf'])
 
-    print('state.shape', x_state.shape)
+
     plt.plot(x_state[0, :].full().flatten(), x_state[1, :].full().flatten(), 'r', linewidth=2)
 
     #################################################################################################
