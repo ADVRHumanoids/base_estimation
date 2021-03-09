@@ -102,6 +102,14 @@ bool BaseEstimationPlugin::on_initialize()
 
     // get contact properties
     auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
+    for(auto foot_prefix : feet_prefix) //We assume all contacts enabled at initialization
+    {
+        _contacts_state[foot_prefix] = true;
+    }
+
+    _in_contact_ths = getParamOr("~in_contact_ths", 0.);
+    _not_in_contact_ths = getParamOr("~not_in_contact_ths", 0.);
+
     auto ft_frames   = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
     if(feet_prefix.size() != ft_frames.size())
     {
@@ -114,6 +122,7 @@ bool BaseEstimationPlugin::on_initialize()
         std::string ft_name = ft_frames[i];
 
         auto ft = _robot->getForceTorque().at(ft_name);
+        _ft_map[feet_prefix[i]] = ft;
 
         auto vertices = footFrames(feet_prefix[i]);
 
@@ -131,6 +140,8 @@ bool BaseEstimationPlugin::on_initialize()
     _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
     _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
     _base_raw_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/raw_twist", 1);
+    _contact_viz = std::make_shared<ikbe::contact_viz>("/odometry/contacts/weights", _ros.get());
+    _contacts_state_pub = _ros->advertise<base_estimation::ContactsStatus>("/odometry/contacts/status",1);
 
     if(_gz)
     {
@@ -187,15 +198,49 @@ void BaseEstimationPlugin::run()
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
+    /* Update contact state*/
+    if(_ft_map.size() > 0)
+    {
+        for(auto ft : _ft_map)
+        {
+            Eigen::Vector6d wrench;
+            ft.second->getWrench(wrench);
+            if(wrench[2] >= _in_contact_ths) //in contact
+            {
+                if(!_contacts_state.at(ft.first))
+                {
+                    _contacts_state.at(ft.first) = true;
+                    std::vector<std::string> frames = footFrames(ft.first);
+                    for(auto frame : frames)
+                    {
+                        _est->reset(frame);
+                    }
+                }
+            }
+            else if(wrench[2] <= _not_in_contact_ths) //not in contact
+            {
+                if(_contacts_state.at(ft.first))
+                {
+                    _contacts_state.at(ft.first) = false;
+                }
+            }
+        }
+    }
+
     /* Update estimate */
     Eigen::Affine3d base_pose;
     Eigen::Vector6d base_vel, raw_base_vel;
     if(!_est->update(base_pose, base_vel, raw_base_vel))
     {
         jerror("unable to solve");
+        return;
     }
 
-    /* Base state broadcast */
+    /* Publish contact markers in ROS */
+    _contact_viz->publish(_est->getMapVertexFramesWeights());
+    publishContactStatus(_contacts_state);
+
+    /* Base state broadcast in ROS*/
     publishToROS(base_pose, base_vel, raw_base_vel);
 
     /* Model state broadcast */
@@ -287,6 +332,24 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
         _base_twist_gz_pub->publish(Vmsg);
     }
 
+}
+
+void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_state)
+{
+    base_estimation::ContactsStatus msg;
+    ros::Time t = ros::Time::now();
+
+    base_estimation::ContactStatus cs;
+    for(auto elem : contacts_state)
+    {
+        cs.header.stamp = t;
+        cs.header.frame_id = elem.first;
+        cs.status = elem.second;
+
+        msg.contacts_status.push_back(cs);
+    }
+
+    _contacts_state_pub->publish(msg);
 }
 
 void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)

@@ -74,8 +74,10 @@ void BaseEstimation::addFt(ForceTorqueSensor::ConstPtr ft,
     fth.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
                                                             contact_points,
                                                             _model);
+    fth.vertex_frames = contact_points;
 
     _ft_handler.push_back(std::move(fth));
+
 }
 
 bool BaseEstimation::update(Eigen::Affine3d& pose,
@@ -106,6 +108,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     }
 
     // ft
+    _map_vertex_frames_weights.clear();
     for(auto& item : _ft_handler)
     {
         auto& ft = *item.ft;
@@ -116,6 +119,8 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
 
         _weights = cf.compute(wrench);
         _weights /= _alpha;
+
+        _map_vertex_frames_weights[item.vertex_frames] = _weights;
 
         for(size_t i = 0; i < item.vertex_tasks.size(); ++i)
         {
@@ -155,6 +160,17 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
 void BaseEstimation::reset()
 {
     _ci->reset(0.0);
+}
+
+bool BaseEstimation::reset(const std::string& task_name)
+{
+    auto task = _ci->getTask(task_name);
+    if(task)
+    {
+        task->reset();
+        return true;
+    }
+    return false;
 }
 
 BaseEstimation::Options::Options()

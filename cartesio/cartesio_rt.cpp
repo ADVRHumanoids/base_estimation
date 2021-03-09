@@ -1,4 +1,5 @@
 #include "cartesio_rt.h"
+#include <cartesio_acceleration_support/ForceLimits.h>
 
 using namespace XBot;
 using namespace XBot::Cartesian;
@@ -8,6 +9,7 @@ bool CartesioRt::on_initialize()
     setJournalLevel(Journal::Level::Low);
 
     _nh = std::make_unique<ros::NodeHandle>();
+    _ros = std::make_unique<RosSupport>(*_nh);
 
     /* Get ik problem from ros param */
     auto problem_param = getParamOr<std::string>("~problem_param",
@@ -120,7 +122,14 @@ bool CartesioRt::on_initialize()
                                      &CartesioRt::on_model_state_recv,
                                      this,
                                      1);
+
+
     }
+
+    _contacts_state_sub = _ros->subscribe("/inverse_dynamics/contacts/status",
+                                    &CartesioRt::on_contact_state_recv,
+                                    this,
+                                    1);
 
     /* Ground truth */
     if(getParamOr("~use_ground_truth", false) &&
@@ -163,12 +172,13 @@ void CartesioRt::starting()
     {
         // listen to messages
         _model_state_sub->run();
+        _contacts_state_sub->run();
 
         // nothing.. will retry
         if(!_model_state_recv)
         {
             XBOT2_JINFOP_EVERY(HIGH, (*this), 1s,
-                               "waiting for model state..");
+                               "waiting for model state...");
             return;
         }
 
@@ -220,6 +230,7 @@ void CartesioRt::run()
         if(_model_state_sub)
         {
             _model_state_sub->run();
+            _contacts_state_sub->run();
         }
         else
         {
@@ -298,6 +309,30 @@ void CartesioRt::on_model_state_recv(const CartesioRt::ModelState &msg)
     _rt_model->update();
 
     _model_state_recv = true;
+}
+
+void CartesioRt::on_contact_state_recv(const base_estimation::ContactsStatus& msg)
+{
+    for(auto contact_state : msg.contacts_status)
+    {
+        _contact_state_map[contact_state.header.frame_id] = contact_state.status;
+    }
+
+    for(auto pair : _contact_state_map)
+    {
+        auto force_constr = std::dynamic_pointer_cast<XBot::Cartesian::acceleration::ForceLimits>
+                (_rt_ci->getTask(pair.first+"_f_lims"));
+        if(pair.second)
+        {
+            force_constr->restore();
+        }
+        else
+        {
+            force_constr->setZero();
+        }
+    }
+
+
 }
 
 XBOT2_REGISTER_PLUGIN(CartesioRt,

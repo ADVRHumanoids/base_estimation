@@ -11,13 +11,16 @@ ModelInterface:
 
 # hal
 xbotcore_device_configs:
-  sim: $(rospack find cogimon_config)/hal/cogimon_sim.yaml
-  dummy: $(rospack find cogimon_config)/hal/cogimon_dummy.yaml
+    sim: $(rospack find cogimon_config)/hal/cogimon_sim.yaml
+    dummy: $(rospack find cogimon_config)/hal/cogimon_dummy.yaml
+    ec: $CONFIG_ROOT/hal/cogimon_ec_all.yaml
+    ec_imp: $CONFIG_ROOT/hal/cogimon_ec_all.yaml
+    ec_idle: $CONFIG_ROOT/hal/cogimon_ec_all.yaml
 
 
 # threads
 xbotcore_threads:
-    rt_main:  {sched: fifo , prio: 60, period: 0.001, core_id: 2}
+    rt_main:  {sched: fifo , prio: 60, period: 0.002, core_id: 2}
     nrt_main: {sched: other, prio: 0 , period: 0.005}
 
 
@@ -50,6 +53,8 @@ xbotcore_plugins:
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
             filter_damping: {type: double, value: 1.}
             filter_omega: {type: double, value: 100.}
+            in_contact_ths: {type: double, value: 100.}
+            not_in_contact_ths: {type: double, value: 50.}
 
 
     inverse_dynamics:

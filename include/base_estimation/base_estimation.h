@@ -8,8 +8,8 @@
 
 #include <XBotInterface/Utils.h>
 
-namespace ikbe
-{
+    namespace ikbe
+    {
 
 class BaseEstimation
 {
@@ -51,11 +51,23 @@ public:
                 Eigen::Vector6d& vel,
                 Eigen::Vector6d& raw_vel);
 
+    /**
+     * @brief reset the whole ci
+     */
     void reset();
+
+    /**
+     * @brief reset a single task
+     * @param task_name name of the task
+     */
+    bool reset(const std::string& task_name);
+
 
     void setFilterOmega(const double omega);
     void setFilterDamping(const double eps);
     void setFilterTs(const double ts);
+
+    const std::map<std::vector<std::string>, Eigen::VectorXd>& getMapVertexFramesWeights() const {return _map_vertex_frames_weights;}
 
 private:
 
@@ -71,6 +83,7 @@ private:
 
     struct FtHandler
     {
+        std::vector<std::string> vertex_frames;
         XBot::ForceTorqueSensor::ConstPtr ft;
         VertexForceOptimizer::UniquePtr vertex_opt;
         std::vector<XBot::Cartesian::CartesianTask::Ptr> vertex_tasks;
@@ -84,6 +97,7 @@ private:
     XBot::Utils::SecondOrderFilter<Eigen::Vector6d>::Ptr _vel_filter;
 
 
+    std::map<std::vector<std::string>, Eigen::VectorXd> _map_vertex_frames_weights;
 };
 
 }
