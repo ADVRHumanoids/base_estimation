@@ -7,6 +7,7 @@ from xbot_interface import config_options as co
 import numpy as np
 from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
 import yaml
+from xbot_msgs.msg import JointState
 
 class CartesianInterfaceSolver:
     '''
@@ -42,6 +43,9 @@ class CartesianInterfaceSolver:
         self.com = self.ci.getTask('com')
         self.postural = self.ci.getTask('postural')
 
+        self.l_arm = self.ci.getTask('l_ball_tip')
+        self.r_arm = self.ci.getTask('r_ball_tip')
+
     def __make_problem_desc_ik(self):
 
         # cartesI/O stack:
@@ -56,39 +60,44 @@ class CartesianInterfaceSolver:
 
         ik_cfg['stack'] = [self.ctrl_points.values(), ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
 
+        ik_cfg['constraints'] = ['JointLimits', 'VelocityLimits']
+
+        ik_cfg['JointLimits'] = {'type': 'JointLimits'}
+        ik_cfg['VelocityLimits'] = {'type': 'VelocityLimits'}
+
         ik_cfg['postural'] = {
             'name': 'postural',
             'type': 'Postural',
-            'lambda': 0.1,
+            'lambda': 0.,
         }
 
         ik_cfg['r_ball_tip'] = {
             'name': 'r_ball_tip',
             'type': 'Cartesian',
             'distal_link': 'r_ball_tip',
-            'base_link': 'torso',
-            'lambda': 0.1,
+            'base_link': 'torso',#torso
+            'lambda': 0.1, #0.1,
         }
 
         ik_cfg['l_ball_tip'] = {
             'name': 'l_ball_tip',
             'type': 'Cartesian',
             'distal_link': 'l_ball_tip',
-            'base_link': 'torso',
-            'lambda': 0.1,
+            'base_link': 'torso', #torso
+            'lambda': 0.1, #0.1,
         }
 
         ik_cfg['com'] = {
             'name': 'com',
             'type': 'Com',
-            'lambda': 0.1,
+            'lambda': 0.005,
         }
 
         for c in self.ctrl_points.values():
             ik_cfg[c] = {
                 'type': 'Cartesian',
                 'distal_link': c,
-                'lambda': 0.1
+                'lambda': 0.01
             }
 
         ik_str = yaml.dump(ik_cfg)
@@ -107,12 +116,18 @@ class CartesianInterfaceSolver:
         q += qdot * self.ik_dt + 0.5 * qddot * self.ik_dt ** 2
         qdot += qddot * self.ik_dt
 
+        # print('is q_model (before) equal to q_robot?: {}'.format(np.isclose(q_robot, q_before[6:], 1e-7).all()))
+        # print('is q_before equal to q_after?: {}'.format(np.isclose(q_before, q_after, 1e-7).all()))
+
         self.model.setJointPosition(q)
         self.model.setJointVelocity(qdot)
         self.model.update()
 
         if sim:
             self.robot.setPositionReference(q[6:])
+            # print(self.robot.getJointPosition())
+            # print(self.robot.getPositionReference())
+            # print('is q_robot equal to q_commanded?: {}'.format(np.isclose(self.robot.getJointPosition(), self.robot.getPositionReference(), 1e-7).all()))
             self.robot.move()
 
         return True
@@ -208,31 +223,73 @@ if __name__ == '__main__':
     model = xbot.ModelInterface(opt)
     robot = xbot.RobotInterface(opt)
 
+
     robot.sense()
+    initial_joint_state = rospy.wait_for_message('/xbotcore/joint_states', JointState)
+
+
+
+    # notice how if I only do this, there is a little gulp of the robot
     model.syncFrom(robot)
+
+    # instead of syncing from robot, give the model the POSITION REFERENCE after the homing of the robot
+    pos_ref = [0,0,0,0,0,0]
+    pos_ref.extend(list(initial_joint_state.position_reference))
+    model.setJointPosition(pos_ref)
+
     model.update()
+    world_gazebo = model.getPose('l_sole')
+
+    print('l_sole:', world_gazebo)
+    world_gazebo.translation[1] += model.getPose('r_sole').translation[1]
+
+    print('world_gazebo:', world_gazebo)
+    w_T_fb = model.getFloatingBasePose()
+    print('w_T_fb_before:', w_T_fb)
+    model.setFloatingBasePose(w_T_fb * world_gazebo.inverse())
+
+    model.update()
+
+    print('w_T_fb_after:', model.getFloatingBasePose())
 
     ctrl_points = {0: 'l_sole', 1: 'r_sole'}
     ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=0.01, ctrl_points=ctrl_points)
     print 'Created cartesian interface.'
 
-    one_task = ci_solver[0]
+    ctrl_tasks, com_task = ci_solver.getTasks()
+    #
+    x_l_foot = model.getPose(ctrl_tasks[0].getName()).translation[0]
+    x_r_foot = model.getPose(ctrl_tasks[1].getName()).translation[0]
 
-    starting_pose = Affine3()
-    starting_pose.translation = model.getPose(one_task.getName()).translation
-    starting_pose.linear = model.getPose(one_task.getName()).linear
+    duration = 2
 
-    traj = Affine3()
-    traj.translation = starting_pose.translation
-    traj.linear = starting_pose.linear
+    com_initial = model.getCOM()
+    print('initial_com:', model.getCOM())
+    goal_com = Affine3()
+    goal_com.translation = com_initial
+    goal_com.translation[0] = x_r_foot
+    print('commanded_com:', goal_com)
 
-    for i in range(100):
+    ci_solver.reach(com_task, goal_com, duration, sim=1)
+    print('goal_com:', model.getCOM())
 
-        traj.translation[2] = traj.translation[2] + 0.001
+    # l_arm_initial = model.getPose(l_arm_task.getName())
+    # print('l_arm_initial:', l_arm_initial)
 
-        print(traj.translation)
-        ci_solver.sendTrajectory(ci_solver[0], traj)
 
-        rospy.sleep(0.01)
+    # goal_l_arm = Affine3
+    # goal_l_arm = l_arm_initial
+    # goal_l_arm.translation[2] += 0.01
+    # print('commanded_l_arm:', goal_l_arm)
+    # ci_solver.reach(l_arm_task, goal_l_arm, duration, sim=0)
+    # print('l_arm_goal:', model.getPose(l_arm_task.getName()))
+    # for i in range(100):
+    #
+    #     traj.translation[2] = traj.translation[2] + 0.001
+    #
+    #     print(traj.translation)
+    #     ci_solver.sendTrajectory(ci_solver[0], traj)
+    #
+    #     rospy.sleep(0.01)
 
 
