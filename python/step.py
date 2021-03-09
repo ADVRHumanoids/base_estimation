@@ -24,6 +24,32 @@ from xbot_interface import config_options as co
 from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
 from ci_solver import CartesianInterfaceSolver
 
+from xbot_msgs.msg import JointState
+
+from geometry_msgs.msg import Wrench
+from gazebo_msgs.srv import ApplyBodyWrench
+
+def sendForceGazebo(mag, duration):
+
+    rospy.wait_for_service('gazebo/apply_body_wrench')
+    try:
+        apply_wrench = rospy.ServiceProxy('gazebo/apply_body_wrench', ApplyBodyWrench)
+        body_name = 'cogimon::base_link'
+        reference_frame = ''
+
+        wrench = Wrench()
+        wrench.force.x = mag[0]
+        wrench.force.y = mag[1]
+        wrench.force.z = mag[2]
+
+        duration = rospy.Duration(duration)
+
+        apply_wrench(body_name=body_name, reference_frame=reference_frame, wrench=wrench, duration=duration)
+        return 1
+
+    except rospy.ServiceException as e:
+        print("Service call failed: %s" % e)
+
 class StepSolver:
 
     def __init__(self, n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com):
@@ -551,6 +577,10 @@ if __name__ == '__main__':
 # interactive STEP
     while 1:
 
+        if force_flag and time_in_loop > 3.:
+            print('PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            sendForceGazebo([500, 0., 0.], 0.1)
+            force_flag = 0
         # model.syncFrom(robot) # todo remove or add?
         # model.setFloatingBaseState(fb.getFbPose(), fb.getFbTwist())
         # model.update()
