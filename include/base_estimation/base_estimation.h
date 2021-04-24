@@ -2,15 +2,22 @@
 #define __IK_BASE_ESTIMATION_H__
 
 #include "vertex_force_optimizer.h"
+#include "contact_estimation.h"
 
 #include <cartesian_interface/CartesianInterfaceImpl.h>
 #include <cartesian_interface/problem/Postural.h>
+#include <cartesian_interface/utils/estimation/ForceEstimation.h>
 
 #include <XBotInterface/Utils.h>
 
-    namespace ikbe
-    {
+namespace ikbe
+{
 
+/**
+ * @brief The BaseEstimation class performs estimation
+ * of the floating base state based on force-torque sensing
+ * (or estimation) as well as imu readings.
+ */
 class BaseEstimation
 {
 
@@ -18,27 +25,95 @@ public:
 
     typedef std::unique_ptr<BaseEstimation> UniquePtr;
 
+    /**
+     * @brief The Options struct contains parameters
+     * for the BaseEstimation class, to be provided
+     * upon construction
+     */
     struct Options
     {
+        /**
+         * @brief period at which update() is called
+         */
         double dt;
+
+        /**
+         * @brief enables/disables the generation of
+         * .mat log files upon destruction
+         */
         bool log_enabled;
+
+        /**
+         * @brief contact release threshold for contact
+         * estimation
+         */
+        double contact_release_thr;
+
+        /**
+         * @brief contact attachment threshold for contact
+         * estimation
+         */
+        double contact_attach_thr;
 
         Options();
     };
 
+    /**
+     * @brief BaseEstimation class constructor
+     * @param model is a ModelInterface that is externally
+     * kept updated with the robot state
+     * @param est_model_pb is a yaml cartesio stack of tasks
+     * describing the contact and sensor model for the robot
+     * @param opt is a struct of options
+     */
     BaseEstimation(XBot::ModelInterface::Ptr model,
                    YAML::Node est_model_pb,
-                   Options opt = Options()
-                   );
+                   Options opt = Options());
 
+    /**
+     * @brief ci returns the internal cartesio object
+     */
     XBot::Cartesian::CartesianInterfaceImpl::Ptr ci() const;
 
+    /**
+     * @brief add an imu sensor belonging to the robot to
+     * the estimation process
+     */
     void addImu(XBot::ImuSensor::ConstPtr imu);
 
+    /**
+     * @brief usesImu returns true if the estimator is using
+     * imu information
+     */
     bool usesImu() const;
 
+    /**
+     * @brief add an ft sensor belonging to the robot to the
+     * estimation process
+     * @param ft is the force torque sensor pointer
+     * @param contact_points is a list of vertices whose
+     * convex hull is a representation of the contact surface;
+     * e.g. (i) the four corner frames of a square foot, or
+     * (ii) the single point contact frame for a point contact
+     */
     void addFt(XBot::ForceTorqueSensor::ConstPtr ft,
                std::vector<std::string> contact_points);
+
+    /**
+     * @brief add a virtual ft sensor on the given robot link,
+     * based on an internal force estimator
+     * @param link_name is the robot link where the virtual ft
+     * is placed
+     * @param dofs is a vector of indices specifying which wrench
+     * components should be estimated (e.g. {0, 1, 2} for pure force)
+     * @param contact_points is a list of vertices whose
+     * convex hull is a representation of the contact surface;
+     * e.g. (i) the four corner frames of a square foot, or
+     * (ii) the single point contact frame for a point contact
+     */
+    void addVirtualFt(std::string link_name,
+                      std::vector<int> dofs,
+                      std::vector<std::string> contact_points);
 
     /**
      * @brief update
@@ -62,14 +137,28 @@ public:
      */
     bool reset(const std::string& task_name);
 
-
+    /* Velocity filter parameters */
     void setFilterOmega(const double omega);
     void setFilterDamping(const double eps);
     void setFilterTs(const double ts);
 
-    const std::map<std::vector<std::string>, Eigen::VectorXd>& getMapVertexFramesWeights() const {return _map_vertex_frames_weights;}
+    /* Contact information */
+    struct ContactInformation
+    {
+        std::string name;
+        Eigen::Vector6d wrench;
+        std::vector<std::string> vertex_frames;
+        std::vector<double> vertex_weights;
+        bool contact_state;
+
+        ContactInformation(std::string name,
+                           std::vector<std::string> vertex_frames);
+    };
+
+    std::vector<ContactInformation> contact_info;
 
 private:
+
 
     Options _opt;
 
@@ -81,12 +170,15 @@ private:
     XBot::Cartesian::CartesianTask::Ptr _imu_task;
     XBot::ImuSensor::ConstPtr _imu;
 
+    XBot::Cartesian::Utils::ForceEstimation::Ptr _fest;
+
     struct FtHandler
     {
         std::vector<std::string> vertex_frames;
         XBot::ForceTorqueSensor::ConstPtr ft;
         VertexForceOptimizer::UniquePtr vertex_opt;
         std::vector<XBot::Cartesian::CartesianTask::Ptr> vertex_tasks;
+        ContactEstimation::UniquePtr contact_est;
     };
 
     std::vector<FtHandler> _ft_handler;
@@ -96,8 +188,7 @@ private:
 
     XBot::Utils::SecondOrderFilter<Eigen::Vector6d>::Ptr _vel_filter;
 
-
-    std::map<std::vector<std::string>, Eigen::VectorXd> _map_vertex_frames_weights;
+    void handle_contact_switch(FtHandler& fth);
 };
 
 }

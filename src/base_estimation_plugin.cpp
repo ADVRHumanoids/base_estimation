@@ -39,6 +39,8 @@ bool BaseEstimationPlugin::on_initialize()
     ikbe::BaseEstimation::Options est_opt;
     est_opt.dt = getPeriodSec();
     est_opt.log_enabled = getParamOr("~enable_log", false);
+    est_opt.contact_attach_thr = getParamOr("~contact_attach_thr", 40.0);
+    est_opt.contact_release_thr = getParamOr("~contact_release_thr", 10.0);
 
     // create estimator
     _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);
@@ -102,50 +104,42 @@ bool BaseEstimationPlugin::on_initialize()
 
     // get contact properties
     auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
-    for(auto foot_prefix : feet_prefix) //We assume all contacts enabled at initialization
-    {
-        _contacts_state[foot_prefix] = true;
-    }
 
-    _in_contact_ths = getParamOr("~in_contact_ths", 0.);
-    _not_in_contact_ths = getParamOr("~not_in_contact_ths", 0.);
+    auto ft_frames = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
 
-    auto ft_frames   = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
     if(feet_prefix.size() != ft_frames.size())
     {
         throw std::runtime_error("feet_prefix size is different from ft_frames size!");
     }
 
     // use ft sensors
-    _virtual_ft_sensor = std::make_shared<XBot::Cartesian::Utils::ForceEstimation>
-            (_model,// 1./getPeriodSec(),
-            (double)XBot::Cartesian::Utils::ForceEstimation::DEFAULT_SVD_THRESHOLD); ///TODO: add param for type selection
     for(size_t i = 0; i < ft_frames.size(); i++)
     {
+        // save force-torque name
         std::string ft_name = ft_frames[i];
 
-        XBot::ForceTorqueSensor::ConstPtr ft;
+        // retrieve foot corner frames based on
+        // the given prefix
+        auto vertices = footFrames(feet_prefix[i]);
 
-        std::map< std::string, ForceTorqueSensor::ConstPtr > ft_map = _robot->getForceTorque();
+        // map of available ft sensors
+        auto ft_map = _robot->getForceTorque();
 
-        if(ft_map.find(ft_name) != ft_map.end())
+        // add ft (either real or virtual)
+        if(ft_map.count(ft_name) > 0)
         {
-            ft = ft_map.at(ft_name);
+            _est->addFt(ft_map.at(ft_name),
+                        vertices);
         }
         else
         {
-
-            ft = _virtual_ft_sensor->add_link(ft_name, {0,1,2});
+            _est->addVirtualFt(ft_name,
+                               {0, 1, 2},
+                               vertices);
         }
 
-        _ft_map[feet_prefix[i]] = ft;
-
-        auto vertices = footFrames(feet_prefix[i]);
-
-        _est->addFt(ft, vertices);
-
         jinfo("using ft '{}' with vertices: [{}]",
-              ft->getSensorName(),
+              ft_name,
               fmt::join(vertices, ", "));
     }
 
@@ -171,7 +165,7 @@ bool BaseEstimationPlugin::on_initialize()
     _model_state_pub = advertise<ModelState>("~model_state", _model_state_msg);
 
 
-    //Filter params
+    // filter params
     double filter_param = 0.;
     if(getParam("~filter_omega", filter_param))
     {
@@ -204,7 +198,6 @@ void BaseEstimationPlugin::on_start()
     }
 
     _model->update();
-    _virtual_ft_sensor->update();
 
     _est->reset();
 }
@@ -214,39 +207,6 @@ void BaseEstimationPlugin::run()
     /* Update robot */
     _robot->sense(false);
     _model->syncFrom(*_robot);
-    _virtual_ft_sensor->update();
-
-    /* Update contact state*/
-    if(_ft_map.size() > 0)
-    {
-        for(auto ft : _ft_map)
-        {
-            Eigen::Vector6d wrench;
-            ft.second->getWrench(wrench);
-
-            //std::cout<<ft.first<<": "<<wrench<<std::endl;
-
-            if(wrench[2] >= _in_contact_ths) //in contact
-            {
-                if(!_contacts_state.at(ft.first))
-                {
-                    _contacts_state.at(ft.first) = true;
-                    std::vector<std::string> frames = footFrames(ft.first);
-                    for(auto frame : frames)
-                    {
-                        _est->reset(frame);
-                    }
-                }
-            }
-            else if(wrench[2] <= _not_in_contact_ths) //not in contact
-            {
-                if(_contacts_state.at(ft.first))
-                {
-                    _contacts_state.at(ft.first) = false;
-                }
-            }
-        }
-    }
 
     /* Update estimate */
     Eigen::Affine3d base_pose;
@@ -258,8 +218,8 @@ void BaseEstimationPlugin::run()
     }
 
     /* Publish contact markers in ROS */
-    _contact_viz->publish(_est->getMapVertexFramesWeights());
-    publishContactStatus(_contacts_state);
+    publishVertexWeights();
+    publishContactStatus();
 
     /* Base state broadcast in ROS*/
     publishToROS(base_pose, base_vel, raw_base_vel);
@@ -355,17 +315,18 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
 
 }
 
-void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_state)
+void BaseEstimationPlugin::publishContactStatus()
 {
     base_estimation::ContactsStatus msg;
     ros::Time t = ros::Time::now();
 
-    base_estimation::ContactStatus cs;
-    for(auto elem : contacts_state)
+    for(const auto& cinfo : _est->contact_info)
     {
+        base_estimation::ContactStatus cs;
+
         cs.header.stamp = t;
-        cs.header.frame_id = elem.first;
-        cs.status = elem.second;
+        cs.header.frame_id = cinfo.name;
+        cs.status = cinfo.contact_state;
 
         msg.contacts_status.push_back(cs);
     }
@@ -373,7 +334,20 @@ void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_st
     _contacts_state_pub->publish(msg);
 }
 
-void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
+void BaseEstimationPlugin::publishVertexWeights()
+{
+    std::map<std::vector<std::string>, std::vector<double>> vwmap;
+
+    for(const auto& cinfo : _est->contact_info)
+    {
+        vwmap[cinfo.vertex_frames] = cinfo.vertex_weights;
+    }
+
+    _contact_viz->publish(vwmap);
+}
+
+void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T,
+                                   geometry_msgs::PoseStamped& P)
 {
     P.pose.position.x = T.transform.translation.x;
     P.pose.position.y = T.transform.translation.y;

@@ -1,4 +1,4 @@
-#include "base_estimation/base_estimation.h"
+﻿#include "base_estimation/base_estimation.h"
 
 using namespace ikbe;
 using namespace XBot;
@@ -16,22 +16,27 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
     _opt(opt),
     _alpha(model->getMass()*9.81)
 {
-    // create ci
+    // create ci parameters
     auto ci_params = std::make_shared<Cartesian::Parameters>(opt.dt);
     ci_params->setLogEnabled(opt.log_enabled);
 
+    // ci context
     auto ci_ctx = std::make_shared<Cartesian::Context>(ci_params, model);
 
+    // ci ik problem
     Cartesian::ProblemDescription ik_problem(contact_model_pb, ci_ctx);
 
+    // ci
     _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot",
                                                           ik_problem,
                                                           ci_ctx);
 
-    // get postural
+    // get postural task to be kept in sync with robot
+    // joint positions and velocities
     _postural = task_as<Cartesian::PosturalTask>(_ci->getTask("Postural"));
 
-    _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d> > ();
+    // create a filter for the estimated twist
+    _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d>>();
 }
 
 Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
@@ -70,13 +75,45 @@ void BaseEstimation::addFt(ForceTorqueSensor::ConstPtr ft,
         return task_as<Cartesian::CartesianTask>(_ci->getTask(c));
     });
 
-    // optimizer
+    // vertex force optimizer
     fth.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
                                                             contact_points,
                                                             _model);
     fth.vertex_frames = contact_points;
 
+    // contact estimator
+    fth.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
+                                                          _opt.contact_attach_thr);
+
     _ft_handler.push_back(std::move(fth));
+
+    // push back contact info
+    contact_info.emplace_back(ft->getSensorName(),
+                              contact_points);
+
+
+}
+
+void BaseEstimation::addVirtualFt(std::string link_name,
+                                  std::vector<int> dofs,
+                                  std::vector<std::string> contact_points)
+{
+    using namespace XBot::Cartesian::Utils;
+
+    // create force estimator if needed
+    if(!_fest)
+    {
+        _fest = std::make_shared<ForceEstimation>(
+                    _model,
+                    // 1./getPeriodSec(),  // if using residuals,
+                    ForceEstimation::DEFAULT_SVD_THRESHOLD);
+    }
+
+    // generate virtual ft
+    auto ft = _fest->add_link(link_name, dofs);
+
+    // add it to the estimator
+    addFt(ft, contact_points);
 
 }
 
@@ -107,48 +144,75 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
         _imu_task->setVelocityReference(imu_vel_ref);
     }
 
-    // ft
-    _map_vertex_frames_weights.clear();
-    for(auto& item : _ft_handler)
+    // ft and contacts
+    if(_fest)
     {
-        auto& ft = *item.ft;
-        auto& cf = *item.vertex_opt;
+        _fest->update();
+    }
 
+    int i = 0;  // parallel iteration over contact_info
+    for(auto& fthandler : _ft_handler)
+    {
+        auto& ft = *fthandler.ft;
+        auto& vopt = *fthandler.vertex_opt;
+
+        // get wrench from sensor
         Eigen::Vector6d wrench;
         ft.getWrench(wrench);
 
-        _weights = cf.compute(wrench);
+        // compute vertex forces
+        _weights = vopt.compute(wrench);
+
+        // normalize by robot weight
         _weights /= _alpha;
 
-        _map_vertex_frames_weights[item.vertex_frames] = _weights;
 
-        for(size_t i = 0; i < item.vertex_tasks.size(); ++i)
+        // set weights to tasks
+        for(size_t i = 0; i < fthandler.vertex_tasks.size(); ++i)
         {
-            int size = item.vertex_tasks[i]->getSize();
-            item.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));
+            int size = fthandler.vertex_tasks[i]->getSize();
+            fthandler.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));
         }
+
+        // update contact estimator and handle contact
+        handle_contact_switch(fthandler);
+
+        // save weights
+        Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(),
+                             _weights.size()) = _weights;
+
+        // save contact state
+        contact_info[i].contact_state = fthandler.contact_est->getContactState();
+
+        // save wrench
+        contact_info[i].wrench = wrench;
+
+        // increment contact_info index
+        i++;
+
     }
 
-    /* Set joint velocities to postural task */
+    // set joint velocities to postural task
     _model->getJointVelocity(_qdot);
     _postural->setReferenceVelocity(_qdot);
 
-    /* Solve IK */
+    // solve ik
     if(!_ci->update(0., _opt.dt))  // this updates model qdot
     {
         return false;
     }
 
-    /* Integrate solution */
+    // integrate solution
     _model->getJointPosition(_q);
     _model->getJointVelocity(_qdot);
     _q += _opt.dt * _qdot;
     _model->setJointPosition(_q);
-    _model->update();
+    _model->update();  // note: update here?
 
     _model->getFloatingBasePose(pose);
     _model->getFloatingBaseTwist(raw_vel);
 
+    // velocity filtering
     vel = _vel_filter->process(raw_vel);
     _model->setFloatingBaseTwist(vel);
     _model->update();
@@ -177,6 +241,8 @@ BaseEstimation::Options::Options()
 {
     dt = 1.0;
     log_enabled = false;
+    contact_release_thr = 10.0;
+    contact_attach_thr = 50.0;
 }
 
 void BaseEstimation::setFilterOmega(const double omega)
@@ -192,4 +258,35 @@ void BaseEstimation::setFilterDamping(const double eps)
 void BaseEstimation::setFilterTs(const double ts)
 {
     _vel_filter->setTimeStep(ts);
+}
+
+void BaseEstimation::handle_contact_switch(BaseEstimation::FtHandler& fth)
+{
+    Eigen::Vector3d f;
+    fth.ft->getForce(f);
+
+    // note: normal always local z-axis?
+    double f_n = f.z();
+
+    // if contact is created..
+    if(fth.contact_est->update(f_n) ==
+            ContactEstimation::Event::Attached)
+    {
+        // reset reference for all vertex frames
+        for(auto frame : fth.vertex_frames)
+        {
+            reset(frame);
+        }
+    }
+}
+
+BaseEstimation::ContactInformation::ContactInformation(
+        std::string _name,
+        std::vector<std::string> _vertex_frames):
+    name(_name),
+    vertex_frames(_vertex_frames),
+    vertex_weights(_vertex_frames.size(), 0.0),
+    contact_state(true)
+{
+    wrench.setZero();
 }

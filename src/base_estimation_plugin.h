@@ -36,7 +36,9 @@ private:
     typedef std::map<std::string,bool> ContactsState; //if true contact enabled
 
     void publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v);
-    void publishContactStatus(const ContactsState& contacts_state);
+    void publishContactStatus();
+    void publishVertexWeights();
+
     void convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P);
 
     /**
@@ -62,11 +64,7 @@ private:
 
     MatLogger2::Ptr _logger;
 
-    ContactsState _contacts_state;
-    double _in_contact_ths, _not_in_contact_ths;
     std::map<std::string, ForceTorqueSensor::ConstPtr> _ft_map;
-    XBot::Cartesian::Utils::ForceEstimation::Ptr _virtual_ft_sensor;
-
 
     std::shared_ptr<ikbe::contact_viz> _contact_viz;
 };

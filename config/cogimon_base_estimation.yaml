@@ -34,9 +34,9 @@ xbotcore_plugins:
     ros_io: {thread: nrt_main, type: ros_io}
 
     ros_control: {thread: nrt_main, type: ros_control}
-    
-    base_estimation: 
-        thread: rt_main 
+
+    base_estimation:
+        thread: rt_main
         type: base_estimation
         params:
             ik_problem: {type: yamlfile, value: $PWD/cogimon_base_estimation.stack}
@@ -48,8 +48,8 @@ xbotcore_plugins:
             force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
             filter_damping: {type: double, value: 1.}
             filter_omega: {type: double, value: 100.}
-            in_contact_ths: {type: double, value: 100.}
-            not_in_contact_ths: {type: double, value: 50.}
+            contact_attach_thr: {type: double, value: 100.}
+            contact_release_thr: {type: double, value: 50.}
 
 
     inverse_dynamics:
