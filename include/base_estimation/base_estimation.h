@@ -196,6 +196,8 @@ private:
 
     XBot::Utils::SecondOrderFilter<Eigen::Vector6d>::Ptr _vel_filter;
 
+    XBot::MatLogger2::Ptr _logger;
+
     void handle_contact_switch(ContactHandler& fth);
 };
 

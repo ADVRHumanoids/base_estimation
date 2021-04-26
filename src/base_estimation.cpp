@@ -37,6 +37,14 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
 
     // create a filter for the estimated twist
     _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d>>();
+
+    // logger
+    _logger = XBot::MatLogger2::MakeLogger("/tmp/base_estimation_log");
+    _logger->set_buffer_mode(XBot::VariableBuffer::Mode::circular_buffer);
+    _logger->create("fest_time", 1);
+    _logger->create("ik_time", 1);
+    _logger->create("vertex_opt_time", 1);
+    _logger->create("update_time", 1);
 }
 
 Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
@@ -156,6 +164,9 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
                             Eigen::Vector6d& vel,
                             Eigen::Vector6d& raw_vel)
 {
+    using clock_t = std::chrono::high_resolution_clock;
+    auto total_tic = clock_t::now();
+
     // imu
     if(_imu)
     {
@@ -180,11 +191,16 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     }
 
     // ft and contacts
+
+
+    auto tic = clock_t::now();
     if(_fest)
     {
         _fest->update();
     }
+    _logger->add("fest_time", (clock_t::now() - tic).count()*1e-9);
 
+    tic = clock_t::now();
     int i = 0;  // parallel iteration over contact_info
     for(auto& fthandler : _contact_handler)
     {
@@ -226,16 +242,19 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
         i++;
 
     }
+    _logger->add("vertex_opt_time", (clock_t::now() - tic).count()*1e-9);
 
     // set joint velocities to postural task
     _model->getJointVelocity(_qdot);
     _postural->setReferenceVelocity(_qdot);
 
     // solve ik
+    tic = clock_t::now();
     if(!_ci->update(0., _opt.dt))  // this updates model qdot
     {
         return false;
     }
+    _logger->add("ik_time", (clock_t::now() - tic).count()*1e-9);
 
     // integrate solution
     _model->getJointPosition(_q);
@@ -251,6 +270,8 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     vel = _vel_filter->process(raw_vel);
     _model->setFloatingBaseTwist(vel);
     _model->update();
+
+    _logger->add("update_time", (clock_t::now() - total_tic).count()*1e-9);
 
     return true;
 
