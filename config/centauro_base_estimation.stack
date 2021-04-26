@@ -1,18 +1,18 @@
 solver_options:
     regularization: 1e-12
-    back_end: "qpoases"
-    front_end: "ihqp"
+    back_end: qpoases
+    front_end: ihqp
 
 stack:
-     - ["LF", "RF", "LR", "RR", "IMU"]
+     - [LF, RF, LR, RR, IMU]
 
-constraints: ["Postural"]
+constraints: [Postural]
 
 params:
  - &vertex_lam 0.1
 
 Postural:
-    type: "Postural"
+    type: Postural
     lambda: 0.
     disabled_joints:
         - VIRTUALJOINT_1
@@ -23,34 +23,37 @@ Postural:
         - VIRTUALJOINT_6
 
 IMU:
-    type: "Cartesian"
-    distal_link: "imu_link"
+    type: Cartesian
+    distal_link: imu_link
     lambda: 0.1
     indices: [3,4,5]
     weight: 1.
     active: false
 
 LF:
-    type: "Cartesian"
-    distal_link: "contact_1"
-    lambda: *vertex_lam
-    indices: [0,1,2]
+    type: WheelRolling
+    wheel_name: wheel_1
+    lib_name: libcentauro_cartesio_addon.so
+    wheel_radius: 0.078
+    include_z_axis: true
 
 RF:
-    type: "Cartesian"
-    distal_link: "contact_2"
-    lambda: *vertex_lam
-    indices: [0,1,2]
+    type: WheelRolling
+    wheel_name: wheel_2
+    lib_name: libcentauro_cartesio_addon.so
+    wheel_radius: 0.078
+    include_z_axis: true
 
 LR:
-    type: "Cartesian"
-    distal_link: "contact_3"
-    lambda: *vertex_lam
-    indices: [0,1,2]
+    type: WheelRolling
+    wheel_name: wheel_3
+    lib_name: libcentauro_cartesio_addon.so
+    wheel_radius: 0.078
+    include_z_axis: true
 
 RR:
-    type: "Cartesian"
-    distal_link: "contact_4"
-    lambda: *vertex_lam
-    indices: [0,1,2]
-
+    type: WheelRolling
+    wheel_name: wheel_4
+    lib_name: libcentauro_cartesio_addon.so
+    wheel_radius: 0.078
+    include_z_axis: true

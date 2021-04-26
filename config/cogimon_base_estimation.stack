@@ -1,18 +1,18 @@
 solver_options:
     regularization: 1e-12
-    back_end: "qpoases"
-    front_end: "ihqp"
+    back_end: osqp
+    front_end: ihqp
 
 stack:
-     - ["LFUR", "LFUL", "LFLR", "LFLL", "RFUR", "RFUL", "RFLR", "RFLL", "IMU"]
+     - [LFUR, LFUL, LFLR, LFLL, RFUR, RFUL, RFLR, RFLL, IMU]
 
-constraints: ["Postural"]
+constraints: [Postural]
 
 params:
  - &vertex_lam 0.1
 
 Postural:
-    type: "Postural"
+    type: Postural
     lambda: 0.
     disabled_joints:
         - VIRTUALJOINT_1
@@ -23,58 +23,58 @@ Postural:
         - VIRTUALJOINT_6
 
 IMU:
-    type: "Cartesian"
-    distal_link: "imu_link"
+    type: Cartesian
+    distal_link: imu_link
     lambda: 0.1
     indices: [3,4,5]
     weight: 10
     active: false
 
 LFUR:
-    type: "Cartesian"
-    distal_link: "l_foot_upper_right_link"
+    type: Cartesian
+    distal_link: l_foot_upper_right_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 LFUL:
-    type: "Cartesian"
-    distal_link: "l_foot_upper_left_link"
+    type: Cartesian
+    distal_link: l_foot_upper_left_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 LFLR:
-    type: "Cartesian"
-    distal_link: "l_foot_lower_right_link"
+    type: Cartesian
+    distal_link: l_foot_lower_right_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 LFLL:
-    type: "Cartesian"
-    distal_link: "l_foot_lower_left_link"
+    type: Cartesian
+    distal_link: l_foot_lower_left_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 RFUR:
-    type: "Cartesian"
-    distal_link: "r_foot_upper_right_link"
+    type: Cartesian
+    distal_link: r_foot_upper_right_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 RFUL:
-    type: "Cartesian"
-    distal_link: "r_foot_upper_left_link"
+    type: Cartesian
+    distal_link: r_foot_upper_left_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 RFLR:
-    type: "Cartesian"
-    distal_link: "r_foot_lower_right_link"
+    type: Cartesian
+    distal_link: r_foot_lower_right_link
     lambda: *vertex_lam
     indices: [0,1,2]
 
 RFLL:
-    type: "Cartesian"
-    distal_link: "r_foot_lower_left_link"
+    type: Cartesian
+    distal_link: r_foot_lower_left_link
     lambda: *vertex_lam
     indices: [0,1,2]
 

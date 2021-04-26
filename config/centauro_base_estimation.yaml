@@ -44,8 +44,13 @@ xbotcore_plugins:
             world_from_gz: {type: bool, value: true}
             use_imu: {type: bool, value: true}
             enable_log: {type: bool, value: false}
-            feet_prefix: {type: vector<string>, value: [contact_1, contact_2, contact_3, contact_4]}
-            force_torque_frames: {type: vector<string>, value: [contact_1, contact_2, contact_3, contact_4]}
+            rolling_contacts:
+              type: map<string>
+              value:
+                contact_1: wheel_1  # ft -> wheel
+                contact_2: wheel_2
+                contact_3: wheel_3
+                contact_4: wheel_4
             filter_damping: {type: double, value: 1.}
             filter_omega: {type: double, value: 100.}
             contact_attach_thr: {type: double, value: 100.}

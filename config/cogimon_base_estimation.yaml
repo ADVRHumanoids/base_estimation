@@ -44,39 +44,42 @@ xbotcore_plugins:
             world_from_gz: {type: bool, value: true}
             use_imu: {type: bool, value: true}
             enable_log: {type: bool, value: false}
-            feet_prefix: {type: vector<string>, value: [l_foot, r_foot]}
-            force_torque_frames: {type: vector<string>, value: [l_leg_ft, r_leg_ft]}
+            surface_contacts:
+              type: map<string>
+              value:
+                l_leg_ft: l_foot  # ft -> vertex prefix
+                r_leg_ft: r_foot
             filter_damping: {type: double, value: 1.}
             filter_omega: {type: double, value: 100.}
             contact_attach_thr: {type: double, value: 100.}
             contact_release_thr: {type: double, value: 50.}
 
 
-    inverse_dynamics:
-        thread: rt_main
-        type: cartesio_plugin
-        params:
-            problem_description: {type: file, value: $PWD/cogimon_inverse_dynamics.stack}
-            enable_feedback: {type: bool, value: true}
-            use_ground_truth: {type: bool, value: false}
-            model_state_from_topic: {type: bool, value: true}
-            enable_log: {type: bool, value: false}
-            joint_impedance_scaling: {type: double, value: 0.1}
-        remap:
-            ~/model_state: /base_estimation/model_state
+#    inverse_dynamics:
+#        thread: rt_main
+#        type: cartesio_plugin
+#        params:
+#            problem_description: {type: file, value: $PWD/cogimon_inverse_dynamics.stack}
+#            enable_feedback: {type: bool, value: true}
+#            use_ground_truth: {type: bool, value: false}
+#            model_state_from_topic: {type: bool, value: true}
+#            enable_log: {type: bool, value: false}
+#            joint_impedance_scaling: {type: double, value: 0.1}
+#        remap:
+#            ~/model_state: /base_estimation/model_state
 
-    impedance_zero:
-        type: impedance_setpoint
-        thread: rt_main
-        params:
-            time: {value: 2.0, type: double}
+#    impedance_zero:
+#        type: impedance_setpoint
+#        thread: rt_main
+#        params:
+#            time: {value: 2.0, type: double}
 
-    impedance_restore:
-        type: impedance_setpoint
-        thread: rt_main
-        params:
-            time: {value: 2.0, type: double}
-            restore_impedance: {value: true, type: bool}
+#    impedance_restore:
+#        type: impedance_setpoint
+#        thread: rt_main
+#        params:
+#            time: {value: 2.0, type: double}
+#            restore_impedance: {value: true, type: bool}
 
 # global parameters
 xbotcore_param:

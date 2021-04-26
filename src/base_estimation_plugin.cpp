@@ -103,42 +103,78 @@ bool BaseEstimationPlugin::on_initialize()
     }
 
     // get contact properties
-    auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
 
-    auto ft_frames = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
+    // rolling contacts (ft name -> wheel name map)
+    std::map<std::string, std::string> rolling_contacts;
 
-    if(feet_prefix.size() != ft_frames.size())
+    // get it from parameters
+    getParam("~rolling_contacts", rolling_contacts);
+
+    for(auto rc : rolling_contacts)
     {
-        throw std::runtime_error("feet_prefix size is different from ft_frames size!");
-    }
-
-    // use ft sensors
-    for(size_t i = 0; i < ft_frames.size(); i++)
-    {
-        // save force-torque name
-        std::string ft_name = ft_frames[i];
-
-        // retrieve foot corner frames based on
-        // the given prefix
-        auto vertices = footFrames(feet_prefix[i]);
+        auto ft_name = rc.first;
+        auto wh_name = rc.second;
 
         // map of available ft sensors
         auto ft_map = _robot->getForceTorque();
 
+        // ft for contact detection
+        XBot::ForceTorqueSensor::ConstPtr ft;
+
         // add ft (either real or virtual)
         if(ft_map.count(ft_name) > 0)
         {
-            _est->addFt(ft_map.at(ft_name),
-                        vertices);
+            ft = ft_map.at(ft_name);
         }
         else
         {
-            _est->addVirtualFt(ft_name,
-                               {0, 1, 2},
-                               vertices);
+            ft = _est->createVirtualFt(ft_name, {0, 1, 2});
         }
 
-        jinfo("using ft '{}' with vertices: [{}]",
+        // create contact
+        _est->addRollingContact(wh_name, ft);
+
+        jinfo("adding rolling contact (ft: '{}', wheel: '{}')",
+              ft_name,
+              wh_name);
+    }
+
+    // surface contacts (including point contacts)
+    std::map<std::string, std::string> surface_contacts;
+
+    // get it from parameters
+    getParam("~surface_contacts", surface_contacts);
+
+    for(auto sc : surface_contacts)
+    {
+        // save force-torque name
+        auto ft_name = sc.first;
+        auto vertex_prefix = sc.second;
+
+        // retrieve foot corner frames based on
+        // the given prefix
+        auto vertices = footFrames(vertex_prefix);
+
+        // map of available ft sensors
+        auto ft_map = _robot->getForceTorque();
+
+        // ft for contact detection
+        XBot::ForceTorqueSensor::ConstPtr ft;
+
+        // add ft (either real or virtual)
+        if(ft_map.count(ft_name) > 0)
+        {
+            ft = ft_map.at(ft_name);
+        }
+        else
+        {
+            ft = _est->createVirtualFt(ft_name, {0, 1, 2});
+        }
+
+        // create contact
+        _est->addSurfaceContact(vertices, ft);
+
+        jinfo("adding surface contact '{}' with vertices: [{}]",
               ft_name,
               fmt::join(vertices, ", "));
     }

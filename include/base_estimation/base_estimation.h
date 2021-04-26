@@ -88,18 +88,6 @@ public:
     bool usesImu() const;
 
     /**
-     * @brief add an ft sensor belonging to the robot to the
-     * estimation process
-     * @param ft is the force torque sensor pointer
-     * @param contact_points is a list of vertices whose
-     * convex hull is a representation of the contact surface;
-     * e.g. (i) the four corner frames of a square foot, or
-     * (ii) the single point contact frame for a point contact
-     */
-    void addFt(XBot::ForceTorqueSensor::ConstPtr ft,
-               std::vector<std::string> contact_points);
-
-    /**
      * @brief add a virtual ft sensor on the given robot link,
      * based on an internal force estimator
      * @param link_name is the robot link where the virtual ft
@@ -110,10 +98,30 @@ public:
      * convex hull is a representation of the contact surface;
      * e.g. (i) the four corner frames of a square foot, or
      * (ii) the single point contact frame for a point contact
+     * @return a shared pointer to the created ft, to be used as input
+     * to addXXXContact functions
      */
-    void addVirtualFt(std::string link_name,
-                      std::vector<int> dofs,
-                      std::vector<std::string> contact_points);
+    XBot::ForceTorqueSensor::ConstPtr createVirtualFt(std::string link_name,
+                                                      std::vector<int> dofs);
+
+    /**
+     * @brief adds a surface contact to the estimator contact model
+     * @param vertex_frames is a list of urdf frames describing
+     * the contact surface convex hull
+     * @param ft is a force torque sensor pointer to be used for
+     * contact estimation
+     */
+    void addSurfaceContact(std::vector<std::string> vertex_frames,
+                           XBot::ForceTorqueSensor::ConstPtr ft);
+
+    /**
+     * @brief adds a rolling contact to the estimator contact model
+     * @param wheel_name is the urdf name of the wheel link
+     * @param ft is a force torque sensor pointer to be used for
+     * contact estimation
+     */
+    void addRollingContact(std::string wheel_name,
+                           XBot::ForceTorqueSensor::ConstPtr ft);
 
     /**
      * @brief update
@@ -172,23 +180,23 @@ private:
 
     XBot::Cartesian::Utils::ForceEstimation::Ptr _fest;
 
-    struct FtHandler
+    struct ContactHandler
     {
         std::vector<std::string> vertex_frames;
         XBot::ForceTorqueSensor::ConstPtr ft;
         VertexForceOptimizer::UniquePtr vertex_opt;
-        std::vector<XBot::Cartesian::CartesianTask::Ptr> vertex_tasks;
+        std::vector<XBot::Cartesian::TaskDescription::Ptr> vertex_tasks;
         ContactEstimation::UniquePtr contact_est;
     };
 
-    std::vector<FtHandler> _ft_handler;
+    std::vector<ContactHandler> _contact_handler;
 
     double _alpha;
     Eigen::VectorXd _weights;
 
     XBot::Utils::SecondOrderFilter<Eigen::Vector6d>::Ptr _vel_filter;
 
-    void handle_contact_switch(FtHandler& fth);
+    void handle_contact_switch(ContactHandler& fth);
 };
 
 }

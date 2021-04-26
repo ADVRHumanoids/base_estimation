@@ -58,45 +58,8 @@ bool BaseEstimation::usesImu() const
     return _imu != nullptr;
 }
 
-void BaseEstimation::addFt(ForceTorqueSensor::ConstPtr ft,
-                           std::vector<std::string> contact_points)
-{
-    FtHandler fth;
-
-    // ft pointer
-    fth.ft = ft;
-
-    // cartesian tasks for vertices
-    std::transform(contact_points.begin(),
-                   contact_points.end(),
-                   std::back_inserter(fth.vertex_tasks),
-                   [this](auto c)
-    {
-        return task_as<Cartesian::CartesianTask>(_ci->getTask(c));
-    });
-
-    // vertex force optimizer
-    fth.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
-                                                            contact_points,
-                                                            _model);
-    fth.vertex_frames = contact_points;
-
-    // contact estimator
-    fth.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
-                                                          _opt.contact_attach_thr);
-
-    _ft_handler.push_back(std::move(fth));
-
-    // push back contact info
-    contact_info.emplace_back(ft->getSensorName(),
-                              contact_points);
-
-
-}
-
-void BaseEstimation::addVirtualFt(std::string link_name,
-                                  std::vector<int> dofs,
-                                  std::vector<std::string> contact_points)
+ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_name,
+                                                            std::vector<int> dofs)
 {
     using namespace XBot::Cartesian::Utils;
 
@@ -112,8 +75,80 @@ void BaseEstimation::addVirtualFt(std::string link_name,
     // generate virtual ft
     auto ft = _fest->add_link(link_name, dofs);
 
-    // add it to the estimator
-    addFt(ft, contact_points);
+    return ft;
+}
+
+void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames,
+                                       ForceTorqueSensor::ConstPtr ft)
+{
+    ContactHandler ch;
+
+    // ft pointer
+    ch.ft = ft;
+
+    // cartesian tasks for vertices
+    std::transform(vertex_frames.begin(),
+                   vertex_frames.end(),
+                   std::back_inserter(ch.vertex_tasks),
+                   [this](auto c)
+    {
+        return task_as<Cartesian::CartesianTask>(_ci->getTask(c));
+    });
+
+    // vertex force optimizer
+    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
+                                                           vertex_frames,
+                                                           _model);
+    ch.vertex_frames = vertex_frames;
+
+    // contact estimator
+    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
+                                                         _opt.contact_attach_thr);
+
+    // push back contact info
+    contact_info.emplace_back(ft->getSensorName(),
+                              vertex_frames);
+
+    _contact_handler.push_back(std::move(ch));
+
+}
+
+void BaseEstimation::addRollingContact(std::string wheel_name,
+                                       ForceTorqueSensor::ConstPtr ft)
+{
+    ContactHandler ch;
+
+    // ft pointer
+    ch.ft = ft;
+
+    // cartesio task for wheel rolling
+    try
+    {
+        ch.vertex_tasks = { _ci->getTask("rolling_" + wheel_name) };
+    }
+    catch(std::out_of_range& e)
+    {
+        throw std::out_of_range("task 'rolling_" + wheel_name + "' undefined");
+    }
+
+
+    // vertex force optimizer's single vertex is located
+    // at the ft frame
+    ch.vertex_frames = { ft->getSensorName() };
+    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
+                                                           ch.vertex_frames,
+                                                           _model);
+
+    // push back contact info
+    contact_info.emplace_back(ft->getSensorName(),
+                              ch.vertex_frames);
+
+    // contact estimator
+    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
+                                                         _opt.contact_attach_thr);
+
+    _contact_handler.push_back(std::move(ch));
+
 
 }
 
@@ -151,7 +186,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     }
 
     int i = 0;  // parallel iteration over contact_info
-    for(auto& fthandler : _ft_handler)
+    for(auto& fthandler : _contact_handler)
     {
         auto& ft = *fthandler.ft;
         auto& vopt = *fthandler.vertex_opt;
@@ -260,7 +295,7 @@ void BaseEstimation::setFilterTs(const double ts)
     _vel_filter->setTimeStep(ts);
 }
 
-void BaseEstimation::handle_contact_switch(BaseEstimation::FtHandler& fth)
+void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
 {
     Eigen::Vector3d f;
     fth.ft->getForce(f);
@@ -273,9 +308,9 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::FtHandler& fth)
             ContactEstimation::Event::Attached)
     {
         // reset reference for all vertex frames
-        for(auto frame : fth.vertex_frames)
+        for(auto t : fth.vertex_tasks)
         {
-            reset(frame);
+            t->reset();
         }
     }
 }
