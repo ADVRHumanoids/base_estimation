@@ -71,6 +71,11 @@ public:
                    Options opt = Options());
 
     /**
+     * @brief returns options associated with the estimator
+     */
+    Options getOptions() const;
+
+    /**
      * @brief ci returns the internal cartesio object
      */
     XBot::Cartesian::CartesianInterfaceImpl::Ptr ci() const;
@@ -86,6 +91,13 @@ public:
      * imu information
      */
     bool usesImu() const;
+
+    /**
+     * @brief imu returns the imu shared pointer associated
+     * with the base estimator, nullptr if addImu() was not
+     * called
+     */
+    XBot::ImuSensor::ConstPtr imu() const;
 
     /**
      * @brief add a virtual ft sensor on the given robot link,

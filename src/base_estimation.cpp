@@ -47,6 +47,11 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
     _logger->create("update_time", 1);
 }
 
+BaseEstimation::Options BaseEstimation::getOptions() const
+{
+    return _opt;
+}
+
 Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
 {
     return _ci;
@@ -64,6 +69,11 @@ void BaseEstimation::addImu(ImuSensor::ConstPtr imu)
 bool BaseEstimation::usesImu() const
 {
     return _imu != nullptr;
+}
+
+ImuSensor::ConstPtr BaseEstimation::imu() const
+{
+    return _imu;
 }
 
 ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_name,
