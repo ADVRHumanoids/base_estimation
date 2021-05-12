@@ -1,4 +1,6 @@
 #include "base_estimation_plugin.h"
+#include "common.h"
+
 #include <tf2_eigen/tf2_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
 
@@ -274,25 +276,7 @@ void BaseEstimationPlugin::on_stop()
 
 std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foot_prefix)
 {
-    std::vector<std::string> feet_tasks;
-    auto ci = _est->ci();
-    for(auto t : ci->getTaskList())
-    {
-        auto cart = std::dynamic_pointer_cast<Cartesian::CartesianTask>(ci->getTask(t));
-
-        if(!cart)
-        {
-            continue;
-        }
-
-        if(t.length() >= foot_prefix.length() &&
-                t.substr(0,foot_prefix.length()) == foot_prefix)
-        {
-            feet_tasks.push_back(t);
-        }
-    }
-
-    return feet_tasks;
+    return ikbe_common::footFrames(*_est->ci(), foot_prefix);
 }
 
 void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v,
