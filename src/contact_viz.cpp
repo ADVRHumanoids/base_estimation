@@ -3,7 +3,7 @@
 using namespace ikbe;
 
 contact_viz::contact_viz(const std::string& topic_name, XBot::RosSupport* ros):
-    _j("contact_viz")
+    _j(XBot::Journal::no_publish, "contact_viz")
 {
     _pub = ros->advertise<visualization_msgs::MarkerArray>(topic_name, 1);
 }
