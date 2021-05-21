@@ -222,9 +222,9 @@ BaseEstimationNode::BaseEstimationNode():
 
     // filter params
     double filter_param = 0.;
-    if(_nhpr.getParam("filter_omega", filter_param))
+    if(_nhpr.getParam("velocity_filter/omega", filter_param))
     {
-        _est->setFilterOmega(filter_param);
+        _est->setFilterOmega(_nhpr.param("velocity_filter/omega", 1e3));
     }
     if(_nhpr.getParam("filter_damping", filter_param))
     {
