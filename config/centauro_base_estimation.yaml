@@ -1,0 +1,58 @@
+XBotInterface:
+  urdf_path: $(rospack find centauro_urdf)/urdf/centauro.urdf
+  srdf_path: $(rospack find centauro_srdf)/srdf/centauro.srdf
+
+ModelInterface:
+  model_type: "RBDL"
+  is_model_floating_base: "true"
+
+
+## XBot2-related configuration
+
+# hal
+xbotcore_device_configs:
+    sim: $(rospack find centauro_config)/hal/centauro_gz.yaml
+    dummy: $(rospack find centauro_config)/hal/centauro_dummy.yaml
+    ec: $CONFIG_ROOT/hal/centauro_ec_all.yaml
+    ec_imp: $CONFIG_ROOT/hal/centauro_ec_all.yaml
+    ec_idle: $CONFIG_ROOT/hal/centauro_ec_all.yaml
+
+
+# threads
+xbotcore_threads:
+    rt_main:  {sched: fifo , prio: 60, period: 0.002, core_id: 2}
+    nrt_main: {sched: other, prio: 0 , period: 0.005}
+
+
+# plugins
+xbotcore_plugins:
+
+    homing:
+        thread: rt_main
+        type: homing_example
+
+    ros_io: {thread: nrt_main, type: ros_io}
+
+    ros_control: {thread: nrt_main, type: ros_control}
+
+    base_estimation:
+        thread: rt_main
+        type: base_estimation
+        params:
+            include_1: {type: paramfile, value: $PWD/centauro_params.yaml}
+
+
+
+# global parameters
+xbotcore_param:
+    /jm/tx_filter_autostart: {value: true, type: bool}
+    /jm/tx_filter_cutoff: {value: 2.0, type: double}
+    /jm/enable_safety: {value: false, type: bool}
+    /xbot_internal/ros_io/call_timeout: {value: 1.0, type: chrono}
+    /rt_main/memory_hooks: {value: true, type: bool}
+
+
+
+
+
+

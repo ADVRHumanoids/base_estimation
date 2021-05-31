@@ -3,12 +3,12 @@
 using namespace ikbe;
 
 contact_viz::contact_viz(const std::string& topic_name, XBot::RosSupport* ros):
-    _j("contact_viz")
+    _j(XBot::Journal::no_publish, "contact_viz")
 {
     _pub = ros->advertise<visualization_msgs::MarkerArray>(topic_name, 1);
 }
 
-bool contact_viz::publish(const std::map<std::vector<std::string>, Eigen::VectorXd>& map)
+bool contact_viz::publish(const std::map<std::vector<std::string>, std::vector<double>>& map)
 {
     _marker_array_msg.markers.clear();
 
@@ -18,7 +18,7 @@ bool contact_viz::publish(const std::map<std::vector<std::string>, Eigen::Vector
     for(auto element : map)
     {
         std::vector<std::string> frames = element.first;
-        Eigen::VectorXd normal_forces = element.second;
+        std::vector<double> normal_forces = element.second;
 
         if(frames.size() != normal_forces.size())
         {

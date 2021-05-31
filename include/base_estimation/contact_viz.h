@@ -8,22 +8,28 @@
 
 namespace ikbe
 {
+
 class contact_viz
 {
+
 public:
+
     contact_viz(const std::string& topic_name, XBot::RosSupport* ros);
 
-    bool publish(const std::vector<std::string>& frames, const Eigen::VectorXd& normal_forces);
+    bool publish(const std::vector<std::string>& frames,
+                 const Eigen::VectorXd& normal_forces);
 
-    bool publish(const std::map<std::vector<std::string>, Eigen::VectorXd>& map);
+    bool publish(const std::map<std::vector<std::string>, std::vector<double>>& map);
 
 private:
+
     visualization_msgs::MarkerArray _marker_array_msg;
 
     XBot::PublisherPtr<visualization_msgs::MarkerArray> _pub;
 
     XBot::Journal _j;
 };
+
 }
 
 #endif

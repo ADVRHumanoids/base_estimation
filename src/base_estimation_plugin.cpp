@@ -1,4 +1,6 @@
 #include "base_estimation_plugin.h"
+#include "common.h"
+
 #include <tf2_eigen/tf2_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
 
@@ -39,6 +41,8 @@ bool BaseEstimationPlugin::on_initialize()
     ikbe::BaseEstimation::Options est_opt;
     est_opt.dt = getPeriodSec();
     est_opt.log_enabled = getParamOr("~enable_log", false);
+    est_opt.contact_attach_thr = getParamOr("~contact_attach_thr", 40.0);
+    est_opt.contact_release_thr = getParamOr("~contact_release_thr", 10.0);
 
     // create estimator
     _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);
@@ -101,35 +105,79 @@ bool BaseEstimationPlugin::on_initialize()
     }
 
     // get contact properties
-    auto feet_prefix = getParamOrThrow<std::vector<std::string>>("~feet_prefix");
-    for(auto foot_prefix : feet_prefix) //We assume all contacts enabled at initialization
+
+    // rolling contacts (ft name -> wheel name map)
+    std::map<std::string, std::string> rolling_contacts;
+
+    // get it from parameters
+    getParam("~rolling_contacts", rolling_contacts);
+
+    for(auto rc : rolling_contacts)
     {
-        _contacts_state[foot_prefix] = true;
+        auto ft_name = rc.first;
+        auto wh_name = rc.second;
+
+        // map of available ft sensors
+        auto ft_map = _robot->getForceTorque();
+
+        // ft for contact detection
+        XBot::ForceTorqueSensor::ConstPtr ft;
+
+        // add ft (either real or virtual)
+        if(ft_map.count(ft_name) > 0)
+        {
+            ft = ft_map.at(ft_name);
+        }
+        else
+        {
+            ft = _est->createVirtualFt(ft_name, {0, 1, 2});
+        }
+
+        // create contact
+        _est->addRollingContact(wh_name, ft);
+
+        jinfo("adding rolling contact (ft: '{}', wheel: '{}')",
+              ft_name,
+              wh_name);
     }
 
-    _in_contact_ths = getParamOr("~in_contact_ths", 0.);
-    _not_in_contact_ths = getParamOr("~not_in_contact_ths", 0.);
+    // surface contacts (including point contacts)
+    std::map<std::string, std::string> surface_contacts;
 
-    auto ft_frames   = getParamOrThrow<std::vector<std::string>>("~force_torque_frames");
-    if(feet_prefix.size() != ft_frames.size())
+    // get it from parameters
+    getParam("~surface_contacts", surface_contacts);
+
+    for(auto sc : surface_contacts)
     {
-        throw std::runtime_error("feet_prefix size is different from ft_frames size!");
-    }
+        // save force-torque name
+        auto ft_name = sc.first;
+        auto vertex_prefix = sc.second;
 
-    // use ft sensors
-    for(size_t i = 0; i < ft_frames.size(); i++)
-    {
-        std::string ft_name = ft_frames[i];
+        // retrieve foot corner frames based on
+        // the given prefix
+        auto vertices = footFrames(vertex_prefix);
 
-        auto ft = _robot->getForceTorque().at(ft_name);
-        _ft_map[feet_prefix[i]] = ft;
+        // map of available ft sensors
+        auto ft_map = _robot->getForceTorque();
 
-        auto vertices = footFrames(feet_prefix[i]);
+        // ft for contact detection
+        XBot::ForceTorqueSensor::ConstPtr ft;
 
-        _est->addFt(ft, vertices);
+        // add ft (either real or virtual)
+        if(ft_map.count(ft_name) > 0)
+        {
+            ft = ft_map.at(ft_name);
+        }
+        else
+        {
+            ft = _est->createVirtualFt(ft_name, {0, 1, 2});
+        }
 
-        jinfo("using ft '{}' with vertices: [{}]",
-              ft->getSensorName(),
+        // create contact
+        _est->addSurfaceContact(vertices, ft);
+
+        jinfo("adding surface contact '{}' with vertices: [{}]",
+              ft_name,
               fmt::join(vertices, ", "));
     }
 
@@ -155,7 +203,7 @@ bool BaseEstimationPlugin::on_initialize()
     _model_state_pub = advertise<ModelState>("~model_state", _model_state_msg);
 
 
-    //Filter params
+    // filter params
     double filter_param = 0.;
     if(getParam("~filter_omega", filter_param))
     {
@@ -198,35 +246,6 @@ void BaseEstimationPlugin::run()
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
-    /* Update contact state*/
-    if(_ft_map.size() > 0)
-    {
-        for(auto ft : _ft_map)
-        {
-            Eigen::Vector6d wrench;
-            ft.second->getWrench(wrench);
-            if(wrench[2] >= _in_contact_ths) //in contact
-            {
-                if(!_contacts_state.at(ft.first))
-                {
-                    _contacts_state.at(ft.first) = true;
-                    std::vector<std::string> frames = footFrames(ft.first);
-                    for(auto frame : frames)
-                    {
-                        _est->reset(frame);
-                    }
-                }
-            }
-            else if(wrench[2] <= _not_in_contact_ths) //not in contact
-            {
-                if(_contacts_state.at(ft.first))
-                {
-                    _contacts_state.at(ft.first) = false;
-                }
-            }
-        }
-    }
-
     /* Update estimate */
     Eigen::Affine3d base_pose;
     Eigen::Vector6d base_vel, raw_base_vel;
@@ -237,8 +256,8 @@ void BaseEstimationPlugin::run()
     }
 
     /* Publish contact markers in ROS */
-    _contact_viz->publish(_est->getMapVertexFramesWeights());
-    publishContactStatus(_contacts_state);
+    publishVertexWeights();
+    publishContactStatus();
 
     /* Base state broadcast in ROS*/
     publishToROS(base_pose, base_vel, raw_base_vel);
@@ -257,25 +276,7 @@ void BaseEstimationPlugin::on_stop()
 
 std::vector<std::string> BaseEstimationPlugin::footFrames(const std::string& foot_prefix)
 {
-    std::vector<std::string> feet_tasks;
-    auto ci = _est->ci();
-    for(auto t : ci->getTaskList())
-    {
-        auto cart = std::dynamic_pointer_cast<Cartesian::CartesianTask>(ci->getTask(t));
-
-        if(!cart)
-        {
-            continue;
-        }
-
-        if(t.length() >= foot_prefix.length() &&
-                t.substr(0,foot_prefix.length()) == foot_prefix)
-        {
-            feet_tasks.push_back(t);
-        }
-    }
-
-    return feet_tasks;
+    return ikbe_common::footFrames(*_est->ci(), foot_prefix);
 }
 
 void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v,
@@ -334,17 +335,18 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
 
 }
 
-void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_state)
+void BaseEstimationPlugin::publishContactStatus()
 {
     base_estimation::ContactsStatus msg;
     ros::Time t = ros::Time::now();
 
-    base_estimation::ContactStatus cs;
-    for(auto elem : contacts_state)
+    for(const auto& cinfo : _est->contact_info)
     {
+        base_estimation::ContactStatus cs;
+
         cs.header.stamp = t;
-        cs.header.frame_id = elem.first;
-        cs.status = elem.second;
+        cs.header.frame_id = cinfo.name;
+        cs.status = cinfo.contact_state;
 
         msg.contacts_status.push_back(cs);
     }
@@ -352,7 +354,20 @@ void BaseEstimationPlugin::publishContactStatus(const ContactsState& contacts_st
     _contacts_state_pub->publish(msg);
 }
 
-void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T, geometry_msgs::PoseStamped& P)
+void BaseEstimationPlugin::publishVertexWeights()
+{
+    std::map<std::vector<std::string>, std::vector<double>> vwmap;
+
+    for(const auto& cinfo : _est->contact_info)
+    {
+        vwmap[cinfo.vertex_frames] = cinfo.vertex_weights;
+    }
+
+    _contact_viz->publish(vwmap);
+}
+
+void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T,
+                                   geometry_msgs::PoseStamped& P)
 {
     P.pose.position.x = T.transform.translation.x;
     P.pose.position.y = T.transform.translation.y;
