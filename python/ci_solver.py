@@ -7,6 +7,8 @@ from xbot_interface import config_options as co
 import numpy as np
 from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
 import yaml
+import json
+import pprint
 from xbot_msgs.msg import JointState
 
 class CartesianInterfaceSolver:
@@ -58,7 +60,7 @@ class CartesianInterfaceSolver:
 
         ik_cfg['solver_options'] = {'regularization': 1e-4, 'back-end': 'osqp'}
 
-        ik_cfg['stack'] = [self.ctrl_points.values(), ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
+        ik_cfg['stack'] = [list(self.ctrl_points.values()), ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
 
         ik_cfg['constraints'] = ['JointLimits', 'VelocityLimits']
 
@@ -254,7 +256,7 @@ if __name__ == '__main__':
 
     ctrl_points = {0: 'l_sole', 1: 'r_sole'}
     ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=0.01, ctrl_points=ctrl_points)
-    print 'Created cartesian interface.'
+    print('Created cartesian interface.')
 
     ctrl_tasks, com_task = ci_solver.getTasks()
     #

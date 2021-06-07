@@ -26,11 +26,11 @@ def interpolator(traj_old, step_i, step_f, step_height, time, t_i, t_f, freq):
     # todo do something with the traj_old
     traj = dict()
     # print('traj_old', traj_old.shape)
-    traj_len = np.ceil(float(freq) * float(t_f - t_i))
+    traj_len = (np.ceil(float(freq) * float(t_f - t_i))).astype(int)
     # print('traj_len', traj_len)
-    traj_len_before = np.ceil(float(freq) * float(t_i))
+    traj_len_before = np.ceil(float(freq) * float(t_i)).astype(int)
     # print('traj_len_before', traj_len_before)
-    traj_len_after = np.ceil(float(freq) * float(time-t_f)) + 1 # todo for now is N+1 so traj_len_after lasts 1 node more
+    traj_len_after = np.ceil(float(freq) * float(time-t_f)).astype(int) + 1 # todo for now is N+1 so traj_len_after lasts 1 node more
     # print('traj_len_after', traj_len_after)
 
     t = np.linspace(0, 1, np.ceil(traj_len))
@@ -421,16 +421,17 @@ class Problem:
 
         if 'x' in prb_vars_ordered:
             del prb_vars_ordered['x']
-            #
-            ordered_dict_prepend(prb_vars_ordered, 'a', (2, 1))
-            ordered_dict_prepend(prb_vars_ordered, 'v', (2, 1))
-            ordered_dict_prepend(prb_vars_ordered, 'p', (2, 1))
 
-            # with python >3.2
-            # prb_vars_ordered.update(p=(2, 1), v=(2, 1), a=(2, 1))
-            # prb_vars_ordered.move_to_end('a', last=False)
-            # prb_vars_ordered.move_to_end('v', last=False)
-            # prb_vars_ordered.move_to_end('p', last=False)
+            # with python < 3.2
+            # ordered_dict_prepend(prb_vars_ordered, 'a', (2, 1))
+            # ordered_dict_prepend(prb_vars_ordered, 'v', (2, 1))
+            # ordered_dict_prepend(prb_vars_ordered, 'p', (2, 1))
+
+            # with python > 3.2
+            prb_vars_ordered.update(p=(2, 1), v=(2, 1), a=(2, 1))
+            prb_vars_ordered.move_to_end('a', last=False)
+            prb_vars_ordered.move_to_end('v', last=False)
+            prb_vars_ordered.move_to_end('p', last=False)
 
         # todo careful about ordering
         # filling arrays with zeros

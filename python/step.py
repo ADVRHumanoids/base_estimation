@@ -21,7 +21,8 @@ import rospy
 from cartesian_interface.pyci_all import *
 from xbot_interface import xbot_interface as xbot
 from xbot_interface import config_options as co
-from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
+from moveit_commander.roscpp_initializer import roscpp_initialize
+# from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
 from ci_solver import CartesianInterfaceSolver
 
 from xbot_msgs.msg import JointState
@@ -518,7 +519,8 @@ if __name__ == '__main__':
     np.set_printoptions(precision=3, suppress=True)
 
     rospy.init_node('step')
-    roscpp_init('step', [])
+    # roscpp_init('step', [])
+    roscpp_initialize('step')
 
     ## optimal problem variables
     initial_ds_t = 0.04
@@ -552,6 +554,7 @@ if __name__ == '__main__':
     pos_ref.extend(list(initial_joint_state.position_reference))
 
     robot.sense()
+
     # model.syncFrom(robot)
     model.setJointPosition(pos_ref)
     model.update() #<--THIS IS NEEDED
@@ -598,7 +601,6 @@ if __name__ == '__main__':
     print('r_foot_initial:', model.getPose(ctrl_tasks[1].getName()))
     print('com:', model.getCOM())
 
-    exit()
     ctrl_points = {0: 'l_sole', 1: 'r_sole'}
     ci_solver_fb = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq, ctrl_points=ctrl_points)
     print('Created feedback cartesian interface.')

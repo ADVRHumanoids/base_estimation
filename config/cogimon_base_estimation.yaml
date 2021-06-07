@@ -56,33 +56,6 @@ xbotcore_plugins:
             in_contact_ths: {type: double, value: 100.}
             not_in_contact_ths: {type: double, value: 50.}
 
-
-    inverse_dynamics:
-        thread: rt_main
-        type: cartesio_plugin
-        params:
-            problem_description: {type: file, value: $PWD/cogimon_inverse_dynamics.stack}
-            enable_feedback: {type: bool, value: true}
-            use_ground_truth: {type: bool, value: false}
-            model_state_from_topic: {type: bool, value: true}
-            enable_log: {type: bool, value: false}
-            joint_impedance_scaling: {type: double, value: 0.1}
-        remap:
-            ~/model_state: /base_estimation/model_state
-
-    impedance_zero:
-        type: impedance_setpoint
-        thread: rt_main
-        params:
-            time: {value: 2.0, type: double}
-
-    impedance_restore:
-        type: impedance_setpoint
-        thread: rt_main
-        params:
-            time: {value: 2.0, type: double}
-            restore_impedance: {value: true, type: bool}
-
 # global parameters
 xbotcore_param:
     /jm/tx_filter_autostart: {value: false, type: bool} # {value: true, type: bool}

@@ -3,7 +3,8 @@ import rospy
 from cartesian_interface.pyci_all import *
 from xbot_interface import xbot_interface as xbot
 from xbot_interface import config_options as co
-from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
+from moveit_commander.roscpp_initializer import roscpp_initialize
+# from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
 from ci_solver import CartesianInterfaceSolver
 import numpy as np
 from geometry_msgs.msg import PoseStamped
@@ -71,7 +72,8 @@ class FloatingBase:
 if __name__ == '__main__':
 
     rospy.init_node('fb_est')
-    roscpp_init('fb_est', [])
+    roscpp_initialize('fb_est')
+    # roscpp_init('fb_est', [])
 
     rate = rospy.Rate(100)
 
