@@ -1,5 +1,5 @@
 from ci_solver import CartesianInterfaceSolver
-from wpg import Stepper
+from wpg_old import Stepper
 import numpy as np
 import casadi as cs
 

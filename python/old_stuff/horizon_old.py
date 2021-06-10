@@ -757,25 +757,25 @@ if __name__ == '__main__':
     #                              bounds=[dict(nodes=[0, 2], lbg=[-1, -1], ubg=[1, 1]), dict(nodes=1, lbg=[-2, -2], ubg=[2, 2])])
 
     # TODO if nodes are just a number, think
-    # prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6], nodes=[0, 2])
+    prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6], nodes=[0, 2])
     # prb.ct.setConstraintFunction('yet_another_constraint', var_opt['u'][0] - var_opt['u'][1], bounds=(dict(ubg=[1], lbg=[-1])))
     # prb.ct.setConstraintFunction('generic_constraint', var_opt['x'][0:2] - var_opt['x'][4:6], bounds=dict(nodes=[2,4], ubg=[1, 1], lbg=[-1,-1]))
     # prb.ct.setConstraintFunction('another_constraint', var_opt['u'] - var_opt['x'][4:6]) #nodes = [[0,2], [4,5]]
     # prb.ct.setConstraintFunction('zmp_constraint', fun_opt['zmp_old'] - var_opt['u'], nodes=[2, prb.N])
 
     # 1000. * sumsqr((Lk[1] - Rk[1]) - self.min_stride_y)
-    prb.setCostFunction('one_cost_function', fun_opt['zmp'][0] - var_opt['x'][2])
+    # prb.setCostFunction('one_cost_function', fun_opt['zmp'][0] - var_opt['x'][2])
 
     problem = prb.buildProblem()
 
     # todo add check for lenght of value inserted
     # todo add check for lenght of nodes inserted
-    prb.setInitialGuess('u', [0,N], [1, 1])
+    # prb.setInitialGuess('u', [0,N], [1, 1])
 
     prb.setStateBoundsFromName(name='x', nodes=[0, 3], lbw=[0, 0, 0, 0, 0, 0], ubw=[0, 0, 0, 0, 0, 0])
 
     # print(w)
-    # prb.ct.setConstraintBounds(-5, 5, [3, 4])
+    prb.ct.setConstraintBounds(-5, 5, [3, 4])
 
     # print(prb.ct.lbg)
     # print(prb.ct.ubg)
@@ -790,3 +790,8 @@ if __name__ == '__main__':
 
     w_opt = prb.solveProblem()
 
+    opt_val = prb.getOptimizedVariables(w_opt)
+
+    print(opt_val)
+
+    print(opt_val['p'])

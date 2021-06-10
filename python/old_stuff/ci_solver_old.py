@@ -18,13 +18,13 @@ class CartesianInterfaceSolver:
         model --> model of the robot
         ik_dt --> dt of the solver
         ctrl_points --> joint of the robot to control
-
     '''
-    def __init__(self, model, robot, ik_dt):
+    def __init__(self, model, robot, ik_dt, ctrl_points):
 
         self.model = model
         self.robot = robot
         self.ik_dt = ik_dt
+        self.ctrl_points = ctrl_points
 
         # to visualize the robot in rviz
         self.rspub = pyci.RobotStatePublisher(self.model)
@@ -37,14 +37,15 @@ class CartesianInterfaceSolver:
                                                        self.ik_dt,
                                                        log_path=self.log_path)
 
+        self.ctrl_tasks = []
+        for k in self.ctrl_points.values():
+            self.ctrl_tasks.append(self.ci.getTask(k))
+
         self.com = self.ci.getTask('com')
         self.postural = self.ci.getTask('postural')
 
         self.l_arm = self.ci.getTask('l_ball_tip')
         self.r_arm = self.ci.getTask('r_ball_tip')
-
-        self.l_sole = self.ci.getTask('l_sole')
-        self.r_sole = self.ci.getTask('r_sole')
 
     def __make_problem_desc_ik(self):
 
@@ -58,7 +59,7 @@ class CartesianInterfaceSolver:
 
         ik_cfg['solver_options'] = {'regularization': 1e-4, 'back-end': 'osqp'}
 
-        ik_cfg['stack'] = [['l_sole', 'r_sole'], ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
+        ik_cfg['stack'] = [list(self.ctrl_points.values()), ['com', 'l_ball_tip', 'r_ball_tip'], ['postural']]
 
         ik_cfg['constraints'] = ['JointLimits', 'VelocityLimits']
 
@@ -93,17 +94,10 @@ class CartesianInterfaceSolver:
             'lambda': 0.005,
         }
 
-        ik_cfg['l_sole'] = {
-                'name': 'l_sole',
+        for c in self.ctrl_points.values():
+            ik_cfg[c] = {
                 'type': 'Cartesian',
-                'distal_link': 'l_sole',
-                'lambda': 0.01
-            }
-
-        ik_cfg['r_sole'] = {
-                'name': 'r_sole',
-                'type': 'Cartesian',
-                'distal_link': 'r_sole',
+                'distal_link': c,
                 'lambda': 0.01
             }
 
@@ -182,9 +176,11 @@ class CartesianInterfaceSolver:
 
             self.rspub.publishTransforms('ci')
 
+    def __getitem__(self, idx):
+        return self.ctrl_tasks[idx]
 
     def getTasks(self):
-        return self.l_sole, self.r_sole, self.l_arm, self.r_arm, self.com
+        return self.ctrl_tasks, self.com
 
     def update(self, ci_time, sim=0):
 
@@ -245,7 +241,6 @@ if __name__ == '__main__':
     model.update()
     world_gazebo = model.getPose('l_sole')
 
-    print('r_sole:', model.getPose('r_sole'))
     print('l_sole:', world_gazebo)
     world_gazebo.translation[1] += model.getPose('r_sole').translation[1]
 
@@ -258,13 +253,14 @@ if __name__ == '__main__':
 
     print('w_T_fb_after:', model.getFloatingBasePose())
 
-    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=0.01)
+    ctrl_points = {0: 'l_sole', 1: 'r_sole'}
+    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=0.01, ctrl_points=ctrl_points)
     print('Created cartesian interface.')
 
-    l_sole_task, r_sole_task, l_arm_task, r_arm_task, com_task = ci_solver.getTasks()
+    ctrl_tasks, com_task = ci_solver.getTasks()
     #
-    x_l_foot = model.getPose(l_sole_task.getName()).translation[0]
-    x_r_foot = model.getPose(r_sole_task.getName()).translation[0]
+    x_l_foot = model.getPose(ctrl_tasks[0].getName()).translation[0]
+    x_r_foot = model.getPose(ctrl_tasks[1].getName()).translation[0]
 
     duration = 2
 
@@ -296,5 +292,3 @@ if __name__ == '__main__':
     #     ci_solver.sendTrajectory(ci_solver[0], traj)
     #
     #     rospy.sleep(0.01)
-
-

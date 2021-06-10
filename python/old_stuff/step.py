@@ -1,13 +1,11 @@
-# /usr/bin/env python3
-
-from horizon import Problem
-from horizon import RK4
-from horizon import casadi_sum
-from horizon import interpolator
+from horizon_old import Problem
+from horizon_old import RK4
+from horizon_old import casadi_sum
+from horizon_old import interpolator
 
 import time
 
-from com_vel_est import FloatingBase
+from python.com_vel_est import FloatingBase
 import matplotlib
 matplotlib.use('TkAgg')
 
@@ -23,7 +21,7 @@ from xbot_interface import xbot_interface as xbot
 from xbot_interface import config_options as co
 from moveit_commander.roscpp_initializer import roscpp_initialize
 # from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
-from ci_solver import CartesianInterfaceSolver
+from ci_solver_old import CartesianInterfaceSolver
 
 from xbot_msgs.msg import JointState
 
