@@ -11,14 +11,13 @@ def tryWithoutRobot(ci_solver, model, l_sole_task, r_sole_task, com_task, n_dura
     initial_com_vel = 0.5
     height_com = model.getCOM()[2] - model.getPose(l_sole_task.getName()).translation[2]
     initial_com = np.array([[model.getCOM()[0], model.getCOM()[1]], [initial_com_vel, 0], [0., 0.]])
-    initial_l_foot = np.array([model.getPose(l_sole_task.getName()).translation[0],
-                               model.getPose(l_sole_task.getName()).translation[1], 0.])
-    initial_r_foot = np.array([model.getPose(r_sole_task.getName()).translation[0],
-                               model.getPose(r_sole_task.getName()).translation[1], 0.])
+    initial_l_foot = np.array([model.getPose(l_sole_task.getName()).translation[0], model.getPose(l_sole_task.getName()).translation[1], 0.])
+    initial_r_foot = np.array([model.getPose(r_sole_task.getName()).translation[0], model.getPose(r_sole_task.getName()).translation[1], 0.])
 
     solver = ss.StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
 
+    exit()
     # print('initial_com:', initial_com)
     # print('initial_l_foot:', initial_l_foot)
     # print('initial_r_foot:', initial_r_foot)

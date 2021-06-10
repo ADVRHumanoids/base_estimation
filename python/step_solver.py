@@ -2,7 +2,7 @@ import casadi as cs
 import numpy as np
 from horizon import problem as csprb
 import matplotlib as plt
-import step_interpolator as stp_interp
+import python.step_interpolator as stp_interp
 
 def casadi_sum(x, axis=None, out=None):
     assert out is None
@@ -91,12 +91,12 @@ class StepSolver:
         self.sym_c = cs.SX
 
         # state variables
-        self.p_abst = self.sym_c.sym('p', 2)  # com position
-        self.v_abst = self.sym_c.sym('v', 2)  # com velocity
-        self.a_abst = self.sym_c.sym('a', 2)  # com acceleration
+        self.p_abst = self.sym_c.sym('p_abst', 2)  # com position
+        self.v_abst = self.sym_c.sym('v_abst', 2)  # com velocity
+        self.a_abst = self.sym_c.sym('a_abst', 2)  # com acceleration
         self.x_abst = cs.vertcat(self.p_abst, self.v_abst, self.a_abst)  # , l, r, alpha_l, alpha_r # state
         # control variables
-        self.j_abst = self.sym_c.sym('j', 2)  # com jerk
+        self.j_abst = self.sym_c.sym('j_abst', 2)  # com jerk
         self.u_abst = self.j_abst  # control
         # model equation
         self.xdot_abst = cs.vertcat(self.v_abst, self.a_abst, self.j_abst)

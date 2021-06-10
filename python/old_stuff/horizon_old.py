@@ -242,6 +242,7 @@ class Problem:
                     if k in range(self.j_dict[cost_fun]['nodes'][0], self.j_dict[cost_fun]['nodes'][1]):
                         self.addCostFunction(cost_fun)
 
+        # print('===============================')
         # todo this is useless here! to place in solve problem, not in build problem
         self.ct.addConstraintBounds()
 
@@ -260,8 +261,8 @@ class Problem:
 
         J = self.j
 
-        prob = {'f': J, 'x': w, 'g': g}
-        self.solver = cs.nlpsol('solver', 'ipopt', prob,
+        self.prob = {'f': J, 'x': w, 'g': g}
+        self.solver = cs.nlpsol('solver', 'ipopt', self.prob,
                            {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'},
                             'print_time': 0})  # 'acceptable_tol': 1e-4(ma57) 'constr_viol_tol':1e-3
 
@@ -320,6 +321,7 @@ class Problem:
                 name = elem[:elem.index('-')]
                 if k+k_prev in self.var_opt_prev:
                     self.var_opt[elem] = self.var_opt_prev[k+k_prev][name]
+
 
     def setStateBounds(self, lbw, ubw, nodes):
 
@@ -473,7 +475,6 @@ class Problem:
         elif isinstance(nodes, int):
             self.w0_list[nodes][name] = vals
 
-        print(self.w0_list)
         self.addInitialGuess()
 
     def addInitialGuess(self):
@@ -518,6 +519,7 @@ class Constraint:
                                             int(name_var[name_var.index('-') + len('-'):]))
 
         # create function and add it to dictionary of constraint function
+        # print('Creating function {}: {} with abstract variables {}'.format(name, g, used_var))
         f = cs.Function(name, list(used_var.values()), [g])
 
         if not nodes:
@@ -645,17 +647,10 @@ class Constraint:
 
     def addConstraint(self, name):
 
-        # print('name:', name)
-        # print('f:', self.g_dict[name]['constraint'])
-        # print('var_opt:', self.var_opt)
-        # print('vars:', [self.var_opt[x] for x in self.g_dict[name]['var']])
-        # print('g_dict:', self.g_dict[name])
-
         f = self.g_dict[name]['constraint']
         g = f(*[self.var_opt[x] for x in self.g_dict[name]['var']])
-        # print('g: {} {}'.format(name, g.shape))
-        # print('value:', g)
-        # print('bounds: {}'.format(self.g_dict[name]['bounds']))
+        # print('Implemented function "{}": {} with vars {}'.format(name, g, [self.var_opt[x] for x in self.g_dict[name]['var']]))
+
         self.g.append(g)
 
     def setConstraintBounds(self, lbg, ubg, nodes):
@@ -791,7 +786,3 @@ if __name__ == '__main__':
     w_opt = prb.solveProblem()
 
     opt_val = prb.getOptimizedVariables(w_opt)
-
-    print(opt_val)
-
-    print(opt_val['p'])

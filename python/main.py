@@ -57,30 +57,31 @@ if __name__ == '__main__':
     # add floating base estimation
     fb = FloatingBase()
     initial_joint_state = rospy.wait_for_message('/xbotcore/joint_states', JointState)
-    pos_ref = [0, 0, 0, 0, 0, 0] # fake floating base + position reference after homing
+    pos_ref = [0, 0, 0, 0, 0, 0]  # fake floating base + position reference after homing
     pos_ref.extend(list(initial_joint_state.position_reference))
 
     robot.sense()
 
     # model.syncFrom(robot)
     model.setJointPosition(pos_ref)
-    model.update() #<--THIS IS NEEDED
+    model.update()  # <--THIS IS NEEDED
 
     # set fake floating base
     world_T_l_sole = model.getPose('l_sole')
     w_T_fb = model.getFloatingBasePose()
-    l_sole_T_fb = world_T_l_sole.inverse()*w_T_fb
-    l_sole_T_fb.translation[1] += (model.getPose('l_sole').translation[1] - model.getPose('r_sole').translation[1])/2.
+    l_sole_T_fb = world_T_l_sole.inverse() * w_T_fb
+    l_sole_T_fb.translation[1] += (model.getPose('l_sole').translation[1] - model.getPose('r_sole').translation[1]) / 2.
     model.setFloatingBasePose(l_sole_T_fb)
 
     # model.setFloatingBaseState(fb.getFbPose(), fb.getFbTwist())
     model.update()
 
     # CREATE CARTESIAN SOLVER
-    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq)
+    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1. / freq)
     print('Created cartesian interface.')
+    ctrl_tasks = [None, None]
 
-    l_sole_task, r_sole_task, l_arm_task, r_arm_task, com_task = ci_solver.getTasks()
+    ctrl_tasks[0], ctrl_tasks[1], l_arm_task, r_arm_task, com_task = ci_solver.getTasks()
 
     ##### HOMING OF ROBOT #####
 
@@ -90,12 +91,10 @@ if __name__ == '__main__':
     # robot.sense()
     # model.syncFrom(robot)
     # model.update()
+    homing.homing(ci_solver, model, ctrl_tasks[0], ctrl_tasks[1], com_task, 1.)
 
-    homing.homing(ci_solver, model, l_sole_task, r_sole_task, com_task, 1.)
-
-    print('before setting FLOATING BASE:')
-    print('l_foot_initial:', model.getPose(l_sole_task.getName()))
-    print('r_foot_initial:', model.getPose(r_sole_task.getName()))
+    print('l_foot_initial:', model.getPose(ctrl_tasks[0].getName()))
+    print('r_foot_initial:', model.getPose(ctrl_tasks[1].getName()))
     print('com:', model.getCOM())
 
     # set real floating base
@@ -103,21 +102,19 @@ if __name__ == '__main__':
     model.setFloatingBaseState(fb.getFbPose(), fb.getFbTwist())
     model.update()
 
-    print('after setting FLOATING BASE:')
-    print('l_foot_initial:', model.getPose(l_sole_task.getName()))
-    print('r_foot_initial:', model.getPose(r_sole_task.getName()))
+    print('l_foot_initial:', model.getPose(ctrl_tasks[0].getName()))
+    print('r_foot_initial:', model.getPose(ctrl_tasks[1].getName()))
     print('com:', model.getCOM())
 
-    ci_solver_fb = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq)
+    ci_solver_fb = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1. / freq)
     print('Created feedback cartesian interface.')
 
-    l_sole_task, r_sole_task, l_arm_task, r_arm_task, com_task = ci_solver_fb.getTasks()
+    ctrl_tasks[0], ctrl_tasks[1], l_arm_task, r_arm_task, com_task = ci_solver_fb.getTasks()
+    # ctrl_tasks, com_task = ci_solver_fb.getTasks()
 
-    height_com = model.getCOM()[2] - model.getPose(l_sole_task.getName()).translation[2]
-
+    height_com = model.getCOM()[2] - model.getPose(ctrl_tasks[0].getName()).translation[2]
     ## CONSTRUCT OPTIMAL PROBLEM
-    # run_model.tryWithoutRobot(ci_solver, model, l_sole_task, r_sole_task, com_task, n_duration, initial_ds_t, single_stance_t, final_ds_t, freq, plot=1, unroll=0)
-
+    # run_model.tryWithoutRobot(ci_solver, model, ctrl_tasks[0], ctrl_tasks[1], com_task, n_duration, initial_ds_t, single_stance_t, final_ds_t, freq, plot=1, unroll=0)
 
     solver = ss.StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
@@ -134,8 +131,10 @@ if __name__ == '__main__':
     i = 0
     rate = rospy.Rate(freq)
 
+    i = 0
     threshold = 0.5
     flag_step = False
+
     t_start_step = None
 
     n_solve = 0
@@ -144,17 +143,17 @@ if __name__ == '__main__':
     l_foot_initial = Affine3()
     r_foot_initial = Affine3()
 
-    lfoot.linear = model.getPose(l_sole_task.getName()).linear
+    lfoot.linear = model.getPose(ctrl_tasks[0].getName()).linear
 
     com_task.setActivationState(pyci.ActivationState.Enabled)
-    l_sole_task.setActivationState(pyci.ActivationState.Enabled)
+    ctrl_tasks[0].setActivationState(pyci.ActivationState.Enabled)
 
     print('started spinning...')
 
+    i = 0
     exit_loop = 1
     time_in_loop = 0
     force_flag = 1
-
     # interactive STEP
     while exit_loop:
 
@@ -171,11 +170,11 @@ if __name__ == '__main__':
             initial_com = np.array([[model.getCOM()[0], model.getCOM()[1]], [threshold, 0], [0., 0.]])
             # initial_com = np.array([[model.getCOM()[0], model.getCOM()[1]], [model.getCOMVelocity()[0], model.getCOMVelocity()[1]], [0., 0.]])
 
-            l_foot_initial.translation = model.getPose(l_sole_task.getName()).translation
-            l_foot_initial.linear = model.getPose(l_sole_task.getName()).linear
+            l_foot_initial.translation = model.getPose(ctrl_tasks[0].getName()).translation
+            l_foot_initial.linear = model.getPose(ctrl_tasks[0].getName()).linear
 
-            r_foot_initial.translation = model.getPose(r_sole_task.getName()).translation
-            r_foot_initial.linear = model.getPose(r_sole_task.getName()).linear
+            r_foot_initial.translation = model.getPose(ctrl_tasks[1].getName()).translation
+            r_foot_initial.linear = model.getPose(ctrl_tasks[1].getName()).linear
 
             initial_l_foot = np.array([l_foot_initial.translation[0], l_foot_initial.translation[1], 0.])
             initial_r_foot = np.array([r_foot_initial.translation[0], r_foot_initial.translation[1], 0.])
@@ -190,10 +189,6 @@ if __name__ == '__main__':
 
             com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t,
                                                            initial_ds_t + single_stance_t, freq)
-
-            print('L_FOOT traj x', l_foot_traj['x'])
-            print('L_FOOT traj y', l_foot_traj['y'])
-            print('L_FOOT traj z', l_foot_traj['z'])
 
             n_solve += 1
             flag_step = True
@@ -220,8 +215,8 @@ if __name__ == '__main__':
             com_task.setPoseReference(com)
             com_task.setVelocityReference(dcom)
 
-            l_sole_task.setPoseReference(lfoot)
-            l_sole_task.setVelocityReference(dlfoot)
+            ctrl_tasks[0].setPoseReference(lfoot)
+            ctrl_tasks[0].setVelocityReference(dlfoot)
 
             i += 1
             if i >= len(l_foot_traj['x']):

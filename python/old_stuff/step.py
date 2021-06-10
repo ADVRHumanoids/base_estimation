@@ -1,7 +1,7 @@
-from horizon_old import Problem
-from horizon_old import RK4
-from horizon_old import casadi_sum
-from horizon_old import interpolator
+from python.old_stuff.horizon_old import Problem
+from python.old_stuff.horizon_old import RK4
+from python.old_stuff.horizon_old import casadi_sum
+from python.old_stuff.horizon_old import interpolator
 
 import time
 
@@ -21,8 +21,11 @@ from xbot_interface import xbot_interface as xbot
 from xbot_interface import config_options as co
 from moveit_commander.roscpp_initializer import roscpp_initialize
 # from moveit_ros_planning_interface._moveit_roscpp_initializer import roscpp_init
-from ci_solver_old import CartesianInterfaceSolver
-
+from python.ci_solver import CartesianInterfaceSolver
+from python import homing
+import python.send_force_gazebo as sfg
+import python.plot_step as stpPlotter
+# import python.step_solver as ss
 from xbot_msgs.msg import JointState
 
 from geometry_msgs.msg import Wrench
@@ -246,6 +249,7 @@ class StepSolver:
 
         self.w, self.g = self.prb.buildProblem()
 
+
     def solveProblemStep(self, initial_com, initial_l_foot, initial_r_foot):
 
         initial_lbw_com = [initial_com[0, 0], initial_com[0, 1],  # com pos
@@ -268,23 +272,21 @@ class StepSolver:
 
         self.prb.setStateBoundsFromName('x', nodes=0, lbw=initial_lbw_com, ubw=initial_ubw_com)
 
-        self.prb.setStateBoundsFromName('l', nodes=0, lbw=[initial_l_foot[0], initial_l_foot[1]],
-                                         ubw=[initial_l_foot[0], initial_l_foot[1]])
-        self.prb.setStateBoundsFromName('r', nodes=0, lbw=[initial_r_foot[0], initial_r_foot[1]],
-                                        ubw=[initial_r_foot[0], initial_r_foot[1]])
+        self.prb.setStateBoundsFromName('l', nodes=0, lbw=[initial_l_foot[0], initial_l_foot[1]], ubw=[initial_l_foot[0], initial_l_foot[1]])
+        self.prb.setStateBoundsFromName('r', nodes=0, lbw=[initial_r_foot[0], initial_r_foot[1]], ubw=[initial_r_foot[0], initial_r_foot[1]])
 
         self.prb.setStateBoundsFromName('x', nodes= self.N, lbw=final_lbw_com, ubw=final_ubw_com)
 
         self.prb.setStateBoundsFromName('alpha_l', lbw=[0., 0., 0., 0.], ubw=[1., 1., 1., 1.])
         self.prb.setStateBoundsFromName('alpha_r', lbw=[0., 0., 0., 0.], ubw=[1., 1., 1., 1.])
 
-        self.prb.setStateBoundsFromName('u', nodes=[0, self.N + 1], lbw=[-1000., -1000.], ubw=[1000., 1000.])
+        self.prb.setStateBoundsFromName('u', nodes=[0, self.N], lbw=[-1000., -1000.], ubw=[1000., 1000.])
 
         # self.prb.setInitialGuess('l', nodes=[0, self.N+1], vals=[initial_l_foot[0], initial_l_foot[1]])
         # self.prb.setInitialGuess('r', nodes=[0, self.N+1], vals=[initial_r_foot[0], initial_r_foot[1]])
 
-        w_opt = self.prb.solveProblem()
-        opt_values = self.prb.getOptimizedVariables(w_opt)
+        self.w_opt = self.prb.solveProblem()
+        opt_values = self.prb.getOptimizedVariables(self.w_opt)
 
         return opt_values
 
@@ -322,7 +324,7 @@ class StepSolver:
         return com_traj, l_foot_traj
 
 
-def plotStep(opt_values):
+def plotStep(opt_values, solver):
 
     cp = opt_values['p'] + opt_values['v'] / np.sqrt(solver.grav / height_com)
     plt.figure()
@@ -426,6 +428,8 @@ def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=
     solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
 
+
+    exit()
     # print('initial_com:', initial_com)
     # print('initial_l_foot:', initial_l_foot)
     # print('initial_r_foot:', initial_r_foot)
@@ -434,11 +438,12 @@ def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=
     # initial_com = np.array([[-0.067, 0.], [0.15, 0.], [0., 0.]])
 
     opt_values = solver.solveProblemStep(initial_com, initial_l_foot, initial_r_foot)
+
     com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t, initial_ds_t + single_stance_t, freq)
 
     # PLOTTING =============================================
     if plot:
-        plotStep(opt_values)
+        stpPlotter.plotStep(opt_values, solver, com_traj, l_foot_traj)
 
     if unroll:
 
@@ -487,27 +492,27 @@ def tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=
 
     exit()
 
-def homing(duration):
-
-    # get x of robot
-    x_l_foot = model.getPose(ctrl_tasks[0].getName()).translation[0]
-    x_r_foot = model.getPose(ctrl_tasks[1].getName()).translation[0]
-
-    print('x_r_foot', x_r_foot)
-
-    com_initial = model.getCOM()
-
-    com_correction = -com_initial[0] + x_r_foot
-    print('com_correction: ', com_correction)
-
-    # command com to reach feet x
-
-    goal_com = Affine3()
-    goal_com.translation = com_initial
-    print('goal_com.translation', goal_com.translation[0])
-    goal_com.translation[0] += com_correction
-
-    ci_solver.reach(com_task, goal_com, duration, sim=1)
+# def homing(duration):
+#
+#     # get x of robot
+#     x_l_foot = model.getPose(ctrl_tasks[0].getName()).translation[0]
+#     x_r_foot = model.getPose(ctrl_tasks[1].getName()).translation[0]
+#
+#     print('x_r_foot', x_r_foot)
+#
+#     com_initial = model.getCOM()
+#
+#     com_correction = -com_initial[0] + x_r_foot
+#     print('com_correction: ', com_correction)
+#
+#     # command com to reach feet x
+#
+#     goal_com = Affine3()
+#     goal_com.translation = com_initial
+#     print('goal_com.translation', goal_com.translation[0])
+#     goal_com.translation[0] += com_correction
+#
+#     ci_solver.reach(com_task, goal_com, duration, sim=1)
 
 
 
@@ -568,11 +573,11 @@ if __name__ == '__main__':
     model.update()
 
     # CREATE CARTESIAN SOLVER
-    ctrl_points = {0: 'l_sole', 1: 'r_sole'}
-    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq, ctrl_points=ctrl_points)
+    ci_solver = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq)
     print('Created cartesian interface.')
+    ctrl_tasks = [None, None]
 
-    ctrl_tasks, com_task = ci_solver.getTasks()
+    ctrl_tasks[0], ctrl_tasks[1], l_arm_task, r_arm_task, com_task = ci_solver.getTasks()
 
 
     ##### HOMING OF ROBOT #####
@@ -583,7 +588,7 @@ if __name__ == '__main__':
     # robot.sense()
     # model.syncFrom(robot)
     # model.update()
-    homing(duration=1.)
+    homing.homing(ci_solver, model, ctrl_tasks[0], ctrl_tasks[1], com_task, 1.)
 
     print('l_foot_initial:', model.getPose(ctrl_tasks[0].getName()))
     print('r_foot_initial:', model.getPose(ctrl_tasks[1].getName()))
@@ -599,15 +604,15 @@ if __name__ == '__main__':
     print('r_foot_initial:', model.getPose(ctrl_tasks[1].getName()))
     print('com:', model.getCOM())
 
-    ctrl_points = {0: 'l_sole', 1: 'r_sole'}
-    ci_solver_fb = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq, ctrl_points=ctrl_points)
+    ci_solver_fb = CartesianInterfaceSolver(model=model, robot=robot, ik_dt=1./freq)
     print('Created feedback cartesian interface.')
 
-    ctrl_tasks, com_task = ci_solver_fb.getTasks()
+    ctrl_tasks[0], ctrl_tasks[1], l_arm_task, r_arm_task, com_task = ci_solver_fb.getTasks()
+    # ctrl_tasks, com_task = ci_solver_fb.getTasks()
 
     height_com = model.getCOM()[2] - model.getPose(ctrl_tasks[0].getName()).translation[2]
     ## CONSTRUCT OPTIMAL PROBLEM
-    # tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=1, unroll=0)
+    tryWithoutRobot(n_duration, initial_ds_t, single_stance_t, final_ds_t, plot=1, unroll=0)
 
 
     solver = StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
@@ -653,7 +658,7 @@ if __name__ == '__main__':
 
         if force_flag and time_in_loop > 3.:
             print('PUSHED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            sendForceGazebo([500, 0., 0.], 0.1)
+            sfg.sendForceGazebo([500, 0., 0.], 0.1)
             force_flag = 0
 
         # model.syncFrom(robot) # todo remove or add?
