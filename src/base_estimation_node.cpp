@@ -5,6 +5,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <tf/transform_datatypes.h>
+#include <nav_msgs/Odometry.h>
 
 #include <RobotInterfaceROS/ConfigFromParam.h>
 #include <XBotInterface/RobotInterface.h>
@@ -49,6 +50,9 @@ private:
     ros::Publisher _base_twist_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
+    ros::Publisher _base_odom_pub;
+
+    bool _publish_tf = false;
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
@@ -211,11 +215,15 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // publishers
-    _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
+    if(_publish_tf) {
+        _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
+    }
+
     _base_pose_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/pose", 1);
     _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
+    _base_odom_pub = _nhpr.advertise<nav_msgs::Odometry>("base_link/odom", 1);
 
     // odom frame name
     _odom_frame = _nhpr.param("odom_frame", "odometry/world"s);
@@ -294,7 +302,9 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     tf2_msgs::TFMessage msg;
     msg.transforms.push_back(tf);
-    _base_tf_pub.publish(msg);
+    if(_publish_tf) {
+        _base_tf_pub.publish(msg);
+    }
 
     // publish geomsg
     _base_pose_pub.publish(tf);
@@ -306,6 +316,19 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     tf::twistEigenToMsg(raw_v, Vmsg.twist);
     _base_raw_twist_pub.publish(Vmsg);
+
+    // publish odometry
+    nav_msgs::Odometry odom_msg;
+    odom_msg.header = tf.header;
+    
+    odom_msg.pose.pose.position.x = tf.transform.translation.x;
+    odom_msg.pose.pose.position.y = tf.transform.translation.y;
+    odom_msg.pose.pose.position.z = tf.transform.translation.z;
+
+    odom_msg.pose.pose.orientation = tf.transform.rotation;
+
+    odom_msg.twist.twist = Vmsg.twist;
+    _base_odom_pub.publish(odom_msg);
 }
 
 int main(int argc, char **argv)
