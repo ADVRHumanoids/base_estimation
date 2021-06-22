@@ -17,8 +17,11 @@
     <param name="rolling_contacts/contact_4" value="wheel_4"/>
     <param name="use_imu" value="true"/>
 
-    <remap from="/robot_description" to="/xbotcore/robot_description"/>
-    <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
+    <param name="robot_description" 
+        textfile="$(find centauro_urdf)/urdf/centauro.urdf"/>
+    
+    <param name="robot_description_semantic"
+        textfile="$(find centauro_srdf)/srdf/centauro.srdf"/>
 
 </node>
 

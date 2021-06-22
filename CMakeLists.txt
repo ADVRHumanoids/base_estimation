@@ -79,16 +79,16 @@ install(
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     )
 
-# compile cartesio rt
-add_subdirectory(cartesio)
+# # compile cartesio rt
+# add_subdirectory(cartesio)
 
-# install files
-install(
-    DIRECTORY config
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-    )
+# # install files
+# install(
+#     DIRECTORY config
+#     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+#     )
 
-install(
-    DIRECTORY launch
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-    )
+# install(
+#     DIRECTORY launch
+#     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+#     )

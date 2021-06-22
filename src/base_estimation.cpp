@@ -87,7 +87,7 @@ ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_nam
         _fest = std::make_shared<ForceEstimation>(
                     _model,
                     // 1./getPeriodSec(),  // if using residuals,
-                    ForceEstimation::DEFAULT_SVD_THRESHOLD);
+                    0.05);
     }
 
     // generate virtual ft
