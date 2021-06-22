@@ -62,7 +62,7 @@ BaseEstimationNode::BaseEstimationNode():
     _nhpr("~")
 {
     // get config options
-    auto cfg = XBot::ConfigOptionsFromParamServer();
+    auto cfg = XBot::ConfigOptionsFromParamServer(_nhpr);
 
     // get robot and model
     _robot = XBot::RobotInterface::getRobot(cfg);
