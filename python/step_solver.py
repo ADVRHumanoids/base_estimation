@@ -133,30 +133,31 @@ class StepSolver:
     def stepPattern(self, initial_n, final_n, type_leg):
 
         if type_leg == 'D':
-            active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
-            
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_zmp_stab',
-                                      self.zmp - (casadi_sum(self.wl_vert, 0).T + casadi_sum(self.wr_vert, 0).T),
-                                      nodes=active_nodes, # [initial_n, final_n]
-                                      bounds=dict(lb=[0., 0.], ub=[0., 0.]))
+            # active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
+            if initial_n != final_n:
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_zmp_stab',
+                                          self.zmp - (casadi_sum(self.wl_vert, 0).T + casadi_sum(self.wr_vert, 0).T),
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n]
+                                          bounds=dict(lb=[0., 0.], ub=[0., 0.]))
 
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts',
-                                      casadi_sum(self.alpha_l, 0).T + casadi_sum(self.alpha_r, 0).T,
-                                      nodes=active_nodes, # [initial_n, final_n]
-                                      bounds=dict(lb=[1.], ub=[1.]))
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts',
+                                          casadi_sum(self.alpha_l, 0).T + casadi_sum(self.alpha_r, 0).T,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n]
+                                          bounds=dict(lb=[1.], ub=[1.]))
             if initial_n == 0:
                 initial_n = 1
 
-            active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_l_foot',
-                                      self.l - self.l_prev,
-                                      nodes=active_nodes, # [initial_n, final_n]
-                                      bounds=dict(lb=[0., 0.], ub=[0., 0.]))
+            # active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
+            if initial_n != final_n:
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_l_foot',
+                                          self.l - self.l_prev,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n]
+                                          bounds=dict(lb=[0., 0.], ub=[0., 0.]))
 
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_r_foot',
-                                      self.r - self.r_prev,
-                                      nodes=active_nodes, # [initial_n, final_n]
-                                      bounds=dict(lb=[0., 0.], ub=[0., 0.]))
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_r_foot',
+                                          self.r - self.r_prev,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n]
+                                          bounds=dict(lb=[0., 0.], ub=[0., 0.]))
 
         else:
             if type_leg.lower() == 'r':
@@ -178,27 +179,27 @@ class StepSolver:
                 fixed_foot_prev = self.r_prev
                 stance_leg_string = 'r'
 
-            active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
+            # active_nodes = list(range(initial_n, final_n)) if initial_n != final_n else initial_n
+            if initial_n != final_n:
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_zmp_stab',
+                                          self.zmp - casadi_sum(stance_w_vert, 0).T,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n],
+                                          bounds=dict(lb=[0., 0.], ub=[0., 0.]))
 
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_zmp_stab',
-                                      self.zmp - casadi_sum(stance_w_vert, 0).T,
-                                      nodes=active_nodes, # [initial_n, final_n],
-                                      bounds=dict(lb=[0., 0.], ub=[0., 0.]))
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts_' + type_leg.lower(),
+                                          casadi_sum(stance_alpha, 0).T,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n],
+                                          bounds=dict(lb=[0.], ub=[0.]))
 
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts_' + type_leg.lower(),
-                                      casadi_sum(stance_alpha, 0).T,
-                                      nodes=active_nodes, # [initial_n, final_n],
-                                      bounds=dict(lb=[0.], ub=[0.]))
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts_' + stance_leg_string,
+                                          casadi_sum(swing_alpha, 0).T,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n],
+                                          bounds=dict(lb=[1.], ub=[1.]))
 
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_contacts_' + stance_leg_string,
-                                      casadi_sum(swing_alpha, 0).T,
-                                      nodes=active_nodes, # [initial_n, final_n],
-                                      bounds=dict(lb=[1.], ub=[1.]))
-
-            self.prb.createConstraint(type_leg + '_' + str(final_n) + '_r_foot',
-                                      fixed_foot - fixed_foot_prev,
-                                      nodes=active_nodes, # [initial_n, final_n],
-                                      bounds=dict(lb=[0., 0.], ub=[0., 0.]))
+                self.prb.createConstraint(type_leg + '_' + str(final_n) + '_r_foot',
+                                          fixed_foot - fixed_foot_prev,
+                                          nodes=list(range(initial_n, final_n)), # [initial_n, final_n],
+                                          bounds=dict(lb=[0., 0.], ub=[0., 0.]))
 
 
     def buildProblemStep(self):
