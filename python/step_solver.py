@@ -260,6 +260,14 @@ class StepSolver:
 
         self.prb.createProblem()
 
+        # SETUP SOLVER
+        opts = {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'}}
+
+        solver = cs.nlpsol('solver', 'ipopt', self.prb.getProblem(), opts)
+        self.prb.setSolver(solver)
+
+        # self.prb.createProblem({"nlpsol.ipopt":True})
+
     def solveProblemStep(self, initial_com, initial_l_foot, initial_r_foot):
 
         initial_lbw_com = [initial_com[0, 0], initial_com[0, 1],  # com pos
