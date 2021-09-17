@@ -17,26 +17,25 @@ def tryWithoutRobot(ci_solver, model, l_sole_task, r_sole_task, com_task, n_dura
     solver = ss.StepSolver(n_duration, initial_ds_t, single_stance_t, final_ds_t, height_com)
     solver.buildProblemStep()
 
-    exit()
     # print('initial_com:', initial_com)
     # print('initial_l_foot:', initial_l_foot)
     # print('initial_r_foot:', initial_r_foot)
     # initial_l_foot = np.array([-0.128, 0.103, 0.])
     # initial_r_foot = np.array([-0.128, -0.103, 0.])
     # initial_com = np.array([[-0.067, 0.], [0.15, 0.], [0., 0.]])
-
     opt_values = solver.solveProblemStep(initial_com, initial_l_foot, initial_r_foot)
 
+
+        
+    com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t,
+                                                   initial_ds_t + single_stance_t, freq)
+    # PLOTTING =============================================
     opt_values['p'] = opt_values['x'][0:2, :]
     opt_values['v'] = opt_values['x'][2:4, :]
     opt_values['a'] = opt_values['x'][4:6, :]
 
     del opt_values['x']
 
-    com_traj, l_foot_traj = solver.interpolateStep(initial_com, opt_values, initial_ds_t,
-                                                   initial_ds_t + single_stance_t, freq)
-
-    # PLOTTING =============================================
     if plot:
         stpPlotter.plotStep(opt_values, solver, com_traj, l_foot_traj)
 

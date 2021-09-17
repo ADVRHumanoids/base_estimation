@@ -1,6 +1,9 @@
 import casadi as cs
 import numpy as np
 from horizon import problem as csprb
+from horizon.solvers import Solver
+from horizon.transcriptions.transcriptor import Transcriptor
+from horizon.utils.resampler_trajectory import resampler, second_order_resample_integrator
 import matplotlib as plt
 import python.step_interpolator as stp_interp
 import logging
@@ -204,30 +207,31 @@ class StepSolver:
 
     def buildProblemStep(self):
 
+        # N nodes means that the problem inside builds N+1 nodes (basically N is the number of input nodes)
         self.prb = csprb.Problem(self.N, crash_if_suboptimal=True)  #logging_level=logging.DEBUG
 
         self.x = self.prb.createStateVariable('x', 6)
-        self.x_prev = self.prb.createStateVariable('x', 6, -1)
 
-        self.l = self.prb.createStateVariable('l', 2)
-        self.r = self.prb.createStateVariable('r', 2)
+        self.l = self.prb.createVariable('l', 2, range(self.N+1))
+        self.r = self.prb.createVariable('r', 2, range(self.N+1))
 
-        self.l_prev = self.prb.createStateVariable('l', 2, -1)
-        self.r_prev = self.prb.createStateVariable('r', 2, -1)
+        self.l_prev = self.l.getVarOffset(-1)
+        self.r_prev = self.r.getVarOffset(-1)
 
-        self.alpha_l = self.prb.createStateVariable('alpha_l', 4)
-        self.alpha_r = self.prb.createStateVariable('alpha_r', 4)
+        self.alpha_l = self.prb.createVariable('alpha_l', 4, range(self.N+1))
+        self.alpha_r = self.prb.createVariable('alpha_r', 4, range(self.N+1))
 
         self.u = self.prb.createInputVariable('u', 2)
-        self.u_prev = self.prb.createInputVariable('u', 2, -1)
+        # self.u_prev = self.u.getVarOffset(-1)
 
 
         # zmp variable
         self.zmp = self.x[0:2] - self.x[4:6] * (self.height_com / self.grav)
 
         # integrator for multiple shooting
-        integrator = RK4(self.M, self.L, self.x_abst, self.u_abst, self.xdot_abst, self.dt)
-        self.x_int = integrator(x0=self.x_prev, p=self.u_prev)
+        xdot = cs.vertcat(self.x[2:4], self.x[4:6], self.u)
+        self.prb.setDynamics(xdot)
+        th = Transcriptor.make_method('multiple_shooting', self.prb, self.dt, opts=dict(integrator='RK4'))
 
         self.wl_vert = self.alpha_l * self.getEdges(self.l)
         self.wr_vert = self.alpha_r * self.getEdges(self.r)
@@ -239,13 +243,6 @@ class StepSolver:
         ds_n_3 = self.N + 1
 
         # todo remember that the last node is N+1! change something
-        # add constraints
-
-        multi_shoot = self.prb.createConstraint('multiple_shooting',
-                                                self.x_int['xf'] - self.x,
-                                                nodes=list(range(1, self.N + 1)), #[1, self.N + 1],
-                                                bounds=dict(ub=[0., 0., 0., 0., 0., 0.], lb=[0., 0., 0., 0., 0., 0.]))
-
 
         self.stepPattern(     0, ds_n_1, 'D')
         self.stepPattern(ds_n_1, ss_n_1, 'L')
@@ -258,13 +255,11 @@ class StepSolver:
         self.prb.createCostFunction('minimize_l_motion', cs.sumsqr(self.l - self.l_prev), nodes=list(range(1, self.N+1)) )#[1, self.N + 1],)
         self.prb.createCostFunction('minimize_r_motion', cs.sumsqr(self.r - self.r_prev), nodes=list(range(1, self.N+1)) )#[1, self.N + 1],)
 
-        self.prb.createProblem()
 
         # SETUP SOLVER
         opts = {'ipopt': {'linear_solver': 'ma27', 'tol': 1e-4, 'print_level': 3, 'sb': 'yes'}}
+        self.solver = Solver.make_solver('ipopt', self.prb, self.dt, opts=opts)
 
-        solver = cs.nlpsol('solver', 'ipopt', self.prb.getProblem(), opts)
-        self.prb.setSolver(solver)
 
         # self.prb.createProblem({"nlpsol.ipopt":True})
 
@@ -298,7 +293,8 @@ class StepSolver:
 
         self.u.setBounds(nodes=list(range(self.N)) , lb=[-1000., -1000.], ub=[1000., 1000.]) #nodes=[0, self.N]
 
-        w_opt = self.prb.solveProblem()
+        self.solver.solve()
+        w_opt = self.solver.getSolutionDict()
 
         return w_opt
 
@@ -307,6 +303,7 @@ class StepSolver:
     def interpolateStep(self, initial_com, opt_values, t_i, t_f, freq):
 
         # ----------------------------------------------------------
+        # np.array([[model.getCOM()[0], model.getCOM()[1]], [threshold, 0], [0., 0.]])
         # interpolate the CoM at a higher frequency (from 0.2 to 0.1)
         com_interpol = cs.DM(initial_com.flatten())
         multiplier = 2
@@ -314,20 +311,14 @@ class StepSolver:
         dt_int = dt / 1 / multiplier
         # pos vel acc
 
-        integrator = RK4(self.M, self.L, self.x_abst, self.u_abst, self.xdot_abst, dt_int)
-        # ----------------------------------------------------------
-        # interpolate CoM using initial_com as x_0 and the optimal input found before, but with a frequency multiplied
-        # apply *multiplier* time the input at every loop
-        for i in range(opt_values['u'].shape[1]):
-            for multi_i in range(multiplier):
-                Fk = integrator(x0=com_interpol[:, -1], p=opt_values['u'][:, i])
-                com_interpol = cs.horzcat(com_interpol, Fk['xf'])
+        state_res = resampler(state_vec=opt_values['x'], input_vec=opt_values['u'], nodes_dt=self.n_duration, desired_dt=dt_int)
 
         com_traj = dict()
-        com_traj['x'] = com_interpol[0, :].full().flatten()  # pos x
-        com_traj['y'] = com_interpol[1, :].full().flatten()  # pos y
-        com_traj['dx'] = com_interpol[2, :].full().flatten()  # vel x
-        com_traj['dy'] = com_interpol[3, :].full().flatten()  # vel y
+
+        com_traj['x'] = state_res[0, :]
+        com_traj['y'] = state_res[1, :]
+        com_traj['dx'] =  state_res[2, :]
+        com_traj['dy'] =  state_res[3, :]
 
         relevant_nodes = [0, self.ds_2 + self.ss_2_n + 1]
         # "manual interpolator
