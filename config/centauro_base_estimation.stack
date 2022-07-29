@@ -31,29 +31,25 @@ IMU:
     active: false
 
 LF:
-    type: WheelRolling
-    wheel_name: wheel_1
-    lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
-    include_z_axis: true
+    type: Cartesian
+    distal_link: contact_1
+    lambda: *vertex_lam
+    indices: [0,1,2]
 
 RF:
-    type: WheelRolling
-    wheel_name: wheel_2
-    lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
-    include_z_axis: true
+    type: Cartesian
+    distal_link: contact_2
+    lambda: *vertex_lam
+    indices: [0,1,2]
 
 LR:
-    type: WheelRolling
-    wheel_name: wheel_3
-    lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
-    include_z_axis: true
+    type: Cartesian
+    distal_link: contact_3
+    lambda: *vertex_lam
+    indices: [0,1,2]
 
 RR:
-    type: WheelRolling
-    wheel_name: wheel_4
-    lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
-    include_z_axis: true
+    type: Cartesian
+    distal_link: contact_4
+    lambda: *vertex_lam
+    indices: [0,1,2]

@@ -1,25 +1,29 @@
+<?xml version="1.0" ?>
+
 <launch>
 
-<node pkg="base_estimation"
-        type="base_estimation_node"
-        name="centauro_base_estimation"
-        output="screen">
+    <node pkg="base_estimation"
+            type="base_estimation_node"
+            name="centauro_base_estimation"
+            output="screen">
 
-    <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
-    <param name="rate" value="200.0"/>
-    <param name="contact_attach_thr" value="100.0"/>
-    <param name="contact_release_thr" value="50.0"/>
-    <param name="velocity_filter/omega" value="100.0"/>
-    <param name="contact_release_thr" value="50.0"/>
-    <param name="rolling_contacts/contact_1" value="wheel_1"/>
-    <param name="rolling_contacts/contact_2" value="wheel_2"/>
-    <param name="rolling_contacts/contact_3" value="wheel_3"/>
-    <param name="rolling_contacts/contact_4" value="wheel_4"/>
-    <param name="use_imu" value="true"/>
+        <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
+        <param name="rate" value="200.0"/>
+        <param name="contact_attach_thr" value="100.0"/>
+        <param name="contact_release_thr" value="50.0"/>
+        <param name="velocity_filter/omega" value="100.0"/>
+        <param name="contact_release_thr" value="50.0"/>
 
-    <remap from="/robot_description" to="/xbotcore/robot_description"/>
-    <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
+        <param name="surface_contacts/contact_1" value="contact_1"/>
+        <param name="surface_contacts/contact_2" value="contact_2"/>
+        <param name="surface_contacts/contact_3" value="contact_3"/>
+        <param name="surface_contacts/contact_4" value="contact_4"/>
 
-</node>
+        <param name="use_imu" value="true"/>
+
+        <remap from="/robot_description" to="/xbotcore/robot_description"/>
+        <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
+
+    </node>
 
 </launch>
