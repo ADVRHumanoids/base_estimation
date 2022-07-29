@@ -10,10 +10,12 @@ find_package(cartesian_interface REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
     visualization_msgs
     std_msgs
-    message_generation)
+    message_generation
+    cartesio_acceleration_support)
 
 
-include_directories(include/)
+include_directories(include/
+      ${catkin_INCLUDE_DIRS})
 
 add_message_files(
     FILES
