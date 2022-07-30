@@ -14,6 +14,7 @@
 #include <base_estimation/base_estimation.h>
 #include <base_estimation/ContactsStatus.h>
 #include <base_estimation/contact_viz.h>
+#include <std_msgs/Bool.h>
 
 #include "common.h"
 
@@ -52,13 +53,13 @@ private:
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
-                      const Eigen::Vector6d& raw_v);
+                      const Eigen::Vector6d& raw_v,
+                      const std::vector<bool>& contact_flags);
 
 };
 
 BaseEstimationNode::BaseEstimationNode():
-    XBot::Journal(XBot::Journal::no_publish,
-                  "base_estimation_node"),
+    XBot::Journal(XBot::Journal::no_publish, "base_estimation_node"),
     _nhpr("~")
 {
     // get config options
@@ -258,7 +259,7 @@ void BaseEstimationNode::start()
 bool BaseEstimationNode::run()
 {
     // update robot
-    _robot->sense(false);
+    _robot->sense(true);
     _model->syncFrom(*_robot);
 
     // update estimate
@@ -272,17 +273,21 @@ bool BaseEstimationNode::run()
 
     // publish contact markers in ROS
     // tbd publishVertexWeights();
+
     // tbd publishContactStatus();
+    std::vector<bool> contacts(4);
+    for (int i = 0; i < contacts.size(); i++) {
+        contacts[i] = _est->contact_info[i].contact_state;
+    }
 
     // base state broadcast in ROS
-    publishToROS(base_pose, base_vel, raw_base_vel);
+    publishToROS(base_pose, base_vel, raw_base_vel, contacts);
 
     return true;
 }
 
-void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
-                                      const Eigen::Vector6d& v,
-                                      const Eigen::Vector6d& raw_v)
+void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v,
+                                      const std::vector<bool>& contact_flags)
 {
     // publish tf
     geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
@@ -306,6 +311,16 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     tf::twistEigenToMsg(raw_v, Vmsg.twist);
     _base_raw_twist_pub.publish(Vmsg);
+
+    // publish contact status
+    base_estimation::ContactsStatus contactsMsg;
+    base_estimation::ContactStatus singleContactMsg;
+    for (int i = 0; i < contact_flags.size(); i++) {            // fill message
+        singleContactMsg.status = contact_flags[i];
+        singleContactMsg.header = tf.header;
+        contactsMsg.contacts_status.emplace_back(singleContactMsg);
+    }
+    _contacts_state_pub.publish(contactsMsg);
 }
 
 int main(int argc, char **argv)
@@ -318,11 +333,11 @@ int main(int argc, char **argv)
     ros::Rate rate(node.getRate());
 
     node.start();
-
+    std::cout << "********* After star(t).." << ros::ok() << std::endl;
     while(ros::ok())
     {
+        std::cout << "In the whil(e)d. ";
         node.run();
-
         rate.sleep();
 
     }

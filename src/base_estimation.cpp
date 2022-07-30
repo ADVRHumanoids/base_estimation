@@ -9,9 +9,7 @@ std::shared_ptr<T> task_as(Cartesian::TaskDescription::Ptr t)
     return std::dynamic_pointer_cast<T>(t);
 }
 
-ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
-                                     YAML::Node contact_model_pb,
-                                     Options opt):
+ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node contact_model_pb, Options opt):
     _model(model),
     _opt(opt),
     _alpha(model->getMass()*9.81)
@@ -170,9 +168,7 @@ void BaseEstimation::addRollingContact(std::string wheel_name,
 
 }
 
-bool BaseEstimation::update(Eigen::Affine3d& pose,
-                            Eigen::Vector6d& vel,
-                            Eigen::Vector6d& raw_vel)
+bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::Vector6d& raw_vel)
 {
     using clock_t = std::chrono::high_resolution_clock;
     auto total_tic = clock_t::now();
@@ -346,9 +342,7 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     }
 }
 
-BaseEstimation::ContactInformation::ContactInformation(
-        std::string _name,
-        std::vector<std::string> _vertex_frames):
+BaseEstimation::ContactInformation::ContactInformation(std::string _name, std::vector<std::string> _vertex_frames):
     name(_name),
     vertex_frames(_vertex_frames),
     vertex_weights(_vertex_frames.size(), 0.0),

@@ -171,8 +171,7 @@ public:
         std::vector<double> vertex_weights;
         bool contact_state;
 
-        ContactInformation(std::string name,
-                           std::vector<std::string> vertex_frames);
+        ContactInformation(std::string name, std::vector<std::string> vertex_frames);
     };
 
     std::vector<ContactInformation> contact_info;
