@@ -353,7 +353,6 @@ int main(int argc, char **argv)
     std::cout << "********* After star(t).." << ros::ok() << std::endl;
     while(ros::ok())
     {
-        std::cout << "In the whil(e)d. ";
         node.run();
         rate.sleep();
 

@@ -197,8 +197,6 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
     }
 
     // ft and contacts
-
-
     auto tic = clock_t::now();
     if(_fest)
     {
@@ -267,6 +265,13 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
     _model->getJointVelocity(_qdot);
     _q += _opt.dt * _qdot;
     _model->setJointPosition(_q);
+
+    // note: must set virtual effort on the base to zero,
+    // otherwise force estimation does not work properly!
+    Eigen::VectorXd tau;
+    _model->getJointEffort(tau);
+    tau.head<6>().setZero();
+    _model->setJointEffort(tau);
     _model->update();  // note: update here?
 
     _model->getFloatingBasePose(pose);
