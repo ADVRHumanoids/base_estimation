@@ -13,6 +13,7 @@
 
 #include <base_estimation/base_estimation.h>
 #include <base_estimation/ContactsStatus.h>
+#include <base_estimation/ContactsWrench.h>
 #include <base_estimation/contact_viz.h>
 #include <std_msgs/Bool.h>
 
@@ -50,11 +51,13 @@ private:
     ros::Publisher _base_twist_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
+    ros::Publisher _wrenches_pub;
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
                       const Eigen::Vector6d& raw_v,
-                      const std::vector<bool>& contact_flags);
+                      const std::vector<bool>& contact_flags,
+                      const std::vector<Eigen::Vector6d>& contact_wrenches);
 
 };
 
@@ -217,6 +220,7 @@ BaseEstimationNode::BaseEstimationNode():
     _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
+    _wrenches_pub = _nhpr.advertise<base_estimation::ContactsWrench>("contacts/wrench", 1);
 
     // odom frame name
     _odom_frame = _nhpr.param("odom_frame", "odometry/world"s);
@@ -275,19 +279,22 @@ bool BaseEstimationNode::run()
     // tbd publishVertexWeights();
 
     // tbd publishContactStatus();
+    std::vector<Eigen::Vector6d> wrenches(4);
     std::vector<bool> contacts(4);
     for (int i = 0; i < contacts.size(); i++) {
         contacts[i] = _est->contact_info[i].contact_state;
+        wrenches[i] = _est->contact_info[i].wrench;
     }
 
     // base state broadcast in ROS
-    publishToROS(base_pose, base_vel, raw_base_vel, contacts);
+    publishToROS(base_pose, base_vel, raw_base_vel, contacts, wrenches);
 
     return true;
 }
 
 void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v,
-                                      const std::vector<bool>& contact_flags)
+                                      const std::vector<bool>& contact_flags,
+                                      const std::vector<Eigen::Vector6d>& contact_wrenches)
 {
     // publish tf
     geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
@@ -321,6 +328,16 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vec
         contactsMsg.contacts_status.emplace_back(singleContactMsg);
     }
     _contacts_state_pub.publish(contactsMsg);
+
+    // publish contact wrench
+    geometry_msgs::WrenchStamped singleWrenchMsg;
+    base_estimation::ContactsWrench wrenchMsg;
+    for (int i = 0; i < contact_wrenches.size(); i++) {            // fill message
+        tf::wrenchEigenToMsg(contact_wrenches[i], singleWrenchMsg.wrench);
+        singleWrenchMsg.header = tf.header;
+        wrenchMsg.contacts_wrench.emplace_back(singleWrenchMsg);
+    }
+    _wrenches_pub.publish(wrenchMsg);
 }
 
 int main(int argc, char **argv)
