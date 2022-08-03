@@ -124,17 +124,31 @@ BaseEstimationNode::BaseEstimationNode():
     std::string world_frame_link = _nhpr.param("world_frame_link", ""s);
     if(world_frame_link != "")
     {
-        Eigen::Affine3d fb_T_l;
-        std::string floating_base_link;
-        _model->getFloatingBaseLink(floating_base_link);
-        if(!_model->getPose(world_frame_link, floating_base_link, fb_T_l))
-        {
-            throw std::runtime_error("world frame link '" + world_frame_link + "' is undefined");
+        try {
+            const std::string basePoseTopic = "/xbotcore/link_state/pelvis/pose";
+            boost::shared_ptr<geometry_msgs::PoseStamped const> msgBasePosePtr;             // ros messages
+            msgBasePosePtr = ros::topic::waitForMessage<geometry_msgs::PoseStamped>(basePoseTopic, _nhpr, ros::Duration(3));
+            Eigen::Affine3d fb_T_l;
+            tf::poseMsgToEigen(msgBasePosePtr->pose, fb_T_l);
+            _model->setFloatingBasePose(fb_T_l);
+            jinfo("Initialized base pose from xbotcore topic");
+
+            throw std::string("Did not receive info from xbotcore topic");
         }
+        catch (std::string logMsg) {            // exception for real robot where xbotcore topic is absent TODO: check if it works
+            std::cout << logMsg << std::endl;
 
-        jinfo("using link '{}' as world frame", world_frame_link);
-
-        _model->setFloatingBasePose(fb_T_l.inverse());
+            // previous implementation
+            Eigen::Affine3d fb_T_l;
+            std::string floating_base_link;
+            _model->getFloatingBaseLink(floating_base_link);
+            if(!_model->getPose(world_frame_link, floating_base_link, fb_T_l))
+            {
+              throw std::runtime_error("world frame link '" + world_frame_link + "' is undefined");
+            }
+            jinfo("using link '{}' as world frame", world_frame_link);
+            _model->setFloatingBasePose(fb_T_l.inverse());
+        }
         _model->update();
     }
 
