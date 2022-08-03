@@ -9,10 +9,12 @@ std::shared_ptr<T> task_as(Cartesian::TaskDescription::Ptr t)
     return std::dynamic_pointer_cast<T>(t);
 }
 
-ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node contact_model_pb, Options opt):
+ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node contact_model_pb,
+                                     ros::NodeHandle& nodeHandle, Options opt):
     _model(model),
     _opt(opt),
-    _alpha(model->getMass()*9.81)
+    _alpha(model->getMass()*9.81),
+    _nodehandle(nodeHandle)
 {
     // create ci parameters
     auto ci_params = std::make_shared<Cartesian::Parameters>(opt.dt);
@@ -118,8 +120,8 @@ void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames,
     ch.vertex_frames = vertex_frames;
 
     // contact estimator
-    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
-                                                         _opt.contact_attach_thr);
+//    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
+    ch.contact_planned = std::make_unique<ContactPreplanned>(_nodehandle, vertex_frames);    // preplanned contacts from planner
 
     // push back contact info
     contact_info.emplace_back(ft->getSensorName(),
@@ -230,14 +232,15 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         }
 
         // update contact estimator and handle contact
-        handle_contact_switch(fthandler);
+//        handle_contact_switch(fthandler);     // no need to check if we use the planned contacts with ContactPreplanned
+        handle_preplanned_contact_switch(fthandler);     // no need to check if we use the planned contacts with ContactPreplanned
 
         // save weights
-        Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(),
-                             _weights.size()) = _weights;
+        Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(), _weights.size()) = _weights;
 
         // save contact state
-        contact_info[i].contact_state = fthandler.contact_est->getContactState();
+//        contact_info[i].contact_state = fthandler.contact_est->getContactState();
+        contact_info[i].contact_state = fthandler.contact_planned->getContactState();
 
         // save wrench
         contact_info[i].wrench = wrench;
@@ -338,6 +341,20 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     // if contact is created..
     if(fth.contact_est->update(f_n) ==
             ContactEstimation::Event::Attached)
+    {
+        // reset reference for all vertex frames
+        for(auto t : fth.vertex_tasks)
+        {
+            t->reset();
+        }
+    }
+}
+
+// handle contact switch but for preplanned contacts, i.e. update the cartesian tasks when a S
+void BaseEstimation::handle_preplanned_contact_switch(BaseEstimation::ContactHandler& fth)
+{
+    // if contact is created..
+    if(fth.contact_planned->update() == ContactPreplanned::Event::Attached)
     {
         // reset reference for all vertex frames
         for(auto t : fth.vertex_tasks)

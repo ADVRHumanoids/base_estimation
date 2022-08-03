@@ -19,6 +19,8 @@
 
 #include "common.h"
 
+#include <base_estimation/contact_estimation.h>
+
 using namespace std::string_literals;
 
 class BaseEstimationNode :
@@ -36,8 +38,6 @@ public:
     bool run();
 
 private:
-
-    ros::NodeHandle _nh;
     ros::NodeHandle _nhpr;
 
     XBot::RobotInterface::Ptr _robot;
@@ -101,7 +101,9 @@ BaseEstimationNode::BaseEstimationNode():
     // create estimator
     _est = std::make_unique<ikbe::BaseEstimation>(_model,
                                                   ik_problem_yaml,
-                                                  est_opt);
+                                                  _nhpr,     // ContactPreplanned
+                                                  est_opt
+                                                  );
 
     // use imu
     if(_nhpr.param("use_imu", false))
@@ -354,6 +356,7 @@ int main(int argc, char **argv)
     while(ros::ok())
     {
         node.run();
+        ros::spinOnce();    // spin for the ocs2 contact subscriber
         rate.sleep();
 
     }

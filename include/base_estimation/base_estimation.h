@@ -60,14 +60,14 @@ public:
 
     /**
      * @brief BaseEstimation class constructor
-     * @param model is a ModelInterface that is externally
-     * kept updated with the robot state
-     * @param est_model_pb is a yaml cartesio stack of tasks
-     * describing the contact and sensor model for the robot
+     * @param model is a ModelInterface that is externally kept updated with the robot state
+     * @param est_model_pb is a yaml cartesio stack of tasks describing the contact and sensor model for the robot
+     * @param nodehandle is necessary to be able to subscribe to the contacts planned by the planner through ContactPreplanned
      * @param opt is a struct of options
      */
     BaseEstimation(XBot::ModelInterface::Ptr model,
                    YAML::Node est_model_pb,
+                   ros::NodeHandle& nodehandle,
                    Options opt = Options());
 
     /**
@@ -107,7 +107,7 @@ public:
      * @param dofs is a vector of indices specifying which wrench
      * components should be estimated (e.g. {0, 1, 2} for pure force)
      * @param contact_points is a list of vertices whose
-     * convex hull is a representation of the contact surface;
+     * convex hull is a representation of the contact rface;
      * e.g. (i) the four corner frames of a square foot, or
      * (ii) the single point contact frame for a point contact
      * @return a shared pointer to the created ft, to be used as input
@@ -177,8 +177,7 @@ public:
     std::vector<ContactInformation> contact_info;
 
 private:
-
-
+    ros::NodeHandle _nodehandle;    // To subscribe to contacts of the planner
     Options _opt;
 
     Eigen::VectorXd _q, _qdot;
@@ -198,6 +197,8 @@ private:
         VertexForceOptimizer::UniquePtr vertex_opt;
         std::vector<XBot::Cartesian::TaskDescription::Ptr> vertex_tasks;
         ContactEstimation::UniquePtr contact_est;
+        ContactPreplanned::UniquePtr contact_planned;       // ContactPreplanned addition
+
     };
 
     std::vector<ContactHandler> _contact_handler;
@@ -210,6 +211,8 @@ private:
     XBot::MatLogger2::Ptr _logger;
 
     void handle_contact_switch(ContactHandler& fth);
+    void handle_preplanned_contact_switch(ContactHandler& fth); // ContactPreplanned
+
 };
 
 }
