@@ -122,9 +122,10 @@ BaseEstimationNode::BaseEstimationNode():
 
     // set world frame coincident to given link
     std::string world_frame_link = _nhpr.param("world_frame_link", ""s);
+    std::cout << "World frame link: " << world_frame_link << std::endl;
     if(world_frame_link == "")
     {
-        const std::string basePoseTopic = "/xbotcore/link_state/pelvis/pos";
+        const std::string basePoseTopic = "/xbotcore/link_state/pelvis/pose";
         boost::shared_ptr<geometry_msgs::PoseStamped const> msgBasePosePtr;             // ros messages
         msgBasePosePtr = ros::topic::waitForMessage<geometry_msgs::PoseStamped>(basePoseTopic, _nhpr, ros::Duration(3));
 
@@ -133,9 +134,6 @@ BaseEstimationNode::BaseEstimationNode():
             tf::poseMsgToEigen(msgBasePosePtr->pose, fb_T_l);
             _model->setFloatingBasePose(fb_T_l);
             jinfo("Initialized base pose from xbotcore topic");
-            std::cout << "Pose translation: " << fb_T_l.translation() << std::endl;
-            std::cout << "Pose linear: " << fb_T_l.linear() << std::endl;
-            std::cout << "Pose rotation: " << fb_T_l.rotation() << std::endl;
         }
         else {          // if xbotcore msg is not available initialize pose with a default value
             Eigen::Affine3d fb_T_l;
