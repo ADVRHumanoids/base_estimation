@@ -227,6 +227,10 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         // set weights to tasks
         for(size_t i = 0; i < fthandler.vertex_tasks.size(); ++i)
         {
+            // set zero weight for swing legs reduces drift
+            if (!fthandler.contact_planned->getContactState())
+                _weights[i] = 0;
+
             int size = fthandler.vertex_tasks[i]->getSize();
             fthandler.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));
         }
