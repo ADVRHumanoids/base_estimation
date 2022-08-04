@@ -88,9 +88,15 @@ int ContactPreplanned::vertices2ContactIndex(std::vector<std::string> vertices_n
  * *************************************************************************/
 void ContactPreplanned::mpcObservationCallback(const ocs2_msgs::mpc_observationConstPtr& msg) {
     _current_mode = msg->mode;
-    update();
+//    update();
 //    std::cout << "Current mode: " << _current_mode << std::endl;
 //    std::cout << "Contact index: " << _contact_index << "       Contact_state: " << _contact_state << std::endl;
+
+    // check that within the callback even should not be returned. callback should just update the flags
+    contact_flag_t contacts_state = modeNumber2StanceLeg(_current_mode);
+    _contact_state = contacts_state.at(_contact_index);
+//    std::cout << "Contact n. " << _contact_index << " Previous cs Current state: " << _previous_contact_state << " -- " << _contact_state <<  std::endl;
+
 }
 
 
@@ -99,24 +105,30 @@ void ContactPreplanned::mpcObservationCallback(const ocs2_msgs::mpc_observationC
  * *************************************************************************/
 ContactPreplanned::Event ContactPreplanned::update()
 {
-    contact_flag_t contacts_state = modeNumber2StanceLeg(_current_mode);
-    _previous_contact_state = _contact_state;
-    _contact_state = contacts_state.at(_contact_index);
-//    for (int i = 0; i < contacts_state.size(); i++)
-//        std::cout << "Contacts state: " << contacts_state.at(i) << std::endl;
+//    contact_flag_t contacts_state = modeNumber2StanceLeg(_current_mode);
+//    _contact_state = contacts_state.at(_contact_index);
 
+//    std::cout << "Contact n. " << _contact_index << " Previous cs Current state: " << _previous_contact_state << " -- " << _contact_state <<  std::endl;
     // contact to be deactivated
     if(_contact_state != _previous_contact_state)
     {
-        if (_contact_state)
+        _previous_contact_state = _contact_state;
+
+        if (_contact_state) {
+//            std::cout << "Contact attached event! " << std::endl;
             return Event::Attached;     // new made contact
-        else
+        }
+        else {
+//            std::cout << "Contact released event! " << std::endl;
             return Event::Released;     // new broken contact
+        }
     }
 
     else
-        // nothing happened
-        return Event::None;
+    {
+        _previous_contact_state = _contact_state;
+        return Event::None; // nothing happened
+    }
 }
 
 /* *************************************************************************
