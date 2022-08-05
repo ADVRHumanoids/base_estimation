@@ -89,14 +89,9 @@ int ContactPreplanned::vertices2ContactIndex(std::vector<std::string> vertices_n
 void ContactPreplanned::mpcObservationCallback(const ocs2_msgs::mpc_observationConstPtr& msg) {
     _current_mode = msg->mode;
 //    update();
-//    std::cout << "Current mode: " << _current_mode << std::endl;
-//    std::cout << "Contact index: " << _contact_index << "       Contact_state: " << _contact_state << std::endl;
-
     // check that within the callback even should not be returned. callback should just update the flags
     contact_flag_t contacts_state = modeNumber2StanceLeg(_current_mode);
     _contact_state = contacts_state.at(_contact_index);
-//    std::cout << "Contact n. " << _contact_index << " Previous cs Current state: " << _previous_contact_state << " -- " << _contact_state <<  std::endl;
-
 }
 
 

@@ -2,6 +2,8 @@
 
 <launch>
 
+    <arg name="estimate_contacts" default="false"/>
+
     <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen">
         <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
         <param name="rate" value="200.0"/>
@@ -15,6 +17,8 @@
         <param name="surface_contacts/contact_4" value="contact_4"/>
 
         <param name="use_imu" value="true"/>
+
+        <param name="estimate_contacts" value="$(arg estimate_contacts)"/>
 
         <remap from="/robot_description" to="/xbotcore/robot_description"/>
         <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>

@@ -97,13 +97,13 @@ BaseEstimationNode::BaseEstimationNode():
     est_opt.log_enabled = _nhpr.param("enable_log", false);
     est_opt.contact_attach_thr = _nhpr.param("contact_attach_thr", 40.0);
     est_opt.contact_release_thr = _nhpr.param("contact_release_thr", 10.0);
+    est_opt.estimate_contacts = _nhpr.param("estimate_contacts", false);
 
     // create estimator
-    _est = std::make_unique<ikbe::BaseEstimation>(_model,
-                                                  ik_problem_yaml,
-                                                  _nhpr,     // ContactPreplanned
-                                                  est_opt
-                                                  );
+    if (est_opt.estimate_contacts)
+        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);            // estimate contacts
+    else
+        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, _nhpr, est_opt);     // preplanned contacts
 
     // use imu
     if(_nhpr.param("use_imu", false))
@@ -125,17 +125,18 @@ BaseEstimationNode::BaseEstimationNode():
     std::cout << "World frame link: " << world_frame_link << std::endl;
     if(world_frame_link == "")
     {
+        // initialize base pose
         const std::string basePoseTopic = "/xbotcore/link_state/pelvis/pose";
         boost::shared_ptr<geometry_msgs::PoseStamped const> msgBasePosePtr;             // ros messages
         msgBasePosePtr = ros::topic::waitForMessage<geometry_msgs::PoseStamped>(basePoseTopic, _nhpr, ros::Duration(3));
 
-        if (msgBasePosePtr != NULL) {       // get xbotcore pose msg if available
+        if (msgBasePosePtr != NULL) {                           // check if xbotcore pose msg is available (simulation)
             Eigen::Affine3d fb_T_l;
             tf::poseMsgToEigen(msgBasePosePtr->pose, fb_T_l);
             _model->setFloatingBasePose(fb_T_l);
             jinfo("Initialized base pose from xbotcore topic");
         }
-        else {          // if xbotcore msg is not available initialize pose with a default value
+        else {                                                  // otherwise initialize with a default value
             Eigen::Affine3d fb_T_l;
             fb_T_l.translation() = Eigen::Vector3d(-0.064, -0.004, 0.719);
             fb_T_l.linear() << 0.999948,    0.0101555,  0.00109614,
@@ -159,11 +160,7 @@ BaseEstimationNode::BaseEstimationNode():
     _model->update();
 
     // get contact properties
-
-    // rolling contacts (ft name -> wheel name map)
-    std::map<std::string, std::string> rolling_contacts;
-
-    // get it from parameters
+    std::map<std::string, std::string> rolling_contacts;            // rolling contacts (ft name -> wheel name map)
     _nhpr.getParam("rolling_contacts", rolling_contacts);
 
     for(auto rc : rolling_contacts)
@@ -179,26 +176,18 @@ BaseEstimationNode::BaseEstimationNode():
 
         // add ft (either real or virtual)
         if(ft_map.count(ft_name) > 0)
-        {
             ft = ft_map.at(ft_name);
-        }
         else
-        {
             ft = _est->createVirtualFt(ft_name, {0, 1, 2});
-        }
 
         // create contact
         _est->addRollingContact(wh_name, ft);
 
-        jinfo("adding rolling contact (ft: '{}', wheel: '{}')",
-                ft_name,
-                wh_name);
+        jinfo("adding rolling contact (ft: '{}', wheel: '{}')", ft_name, wh_name);
     }
 
     // surface contacts (including point contacts)
     std::map<std::string, std::string> surface_contacts;
-
-    // get it from parameters
     _nhpr.getParam("surface_contacts", surface_contacts);
 
     for(auto sc : surface_contacts)
@@ -220,13 +209,9 @@ BaseEstimationNode::BaseEstimationNode():
 
         // add ft (either real or virtual)
         if(ft_map.count(ft_name) > 0)
-        {
             ft = ft_map.at(ft_name);
-        }
         else
-        {
             ft = _est->createVirtualFt(ft_name, {0, 1, 2});
-        }
 
         // create contact
         _est->addSurfaceContact(vertices, ft);
@@ -300,7 +285,7 @@ bool BaseEstimationNode::run()
     // publish contact markers in ROS
     // tbd publishVertexWeights();
 
-    // tbd publishContactStatus();
+    // contact status and contact wrenches
     std::vector<Eigen::Vector6d> wrenches(4);
     std::vector<bool> contacts(4);
     for (int i = 0; i < contacts.size(); i++) {
@@ -372,11 +357,10 @@ int main(int argc, char **argv)
     ros::Rate rate(node.getRate());
 
     node.start();
-    std::cout << "********* After star(t).." << ros::ok() << std::endl;
     while(ros::ok())
     {
         node.run();
-        ros::spinOnce();    // spin for the ocs2 contact subscriber
+        ros::spinOnce();    // spin for the preplanned contacts subscriber
         rate.sleep();
 
     }

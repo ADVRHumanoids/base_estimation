@@ -44,6 +44,12 @@ public:
         bool log_enabled;
 
         /**
+         * @brief estimate_contacts enables/disables the estimation of contact points
+         * In the disabled case the contacts are considered to be known (e.g. from the motion planner)
+         */
+        bool estimate_contacts;
+
+        /**
          * @brief contact release threshold for contact
          * estimation
          */
@@ -59,16 +65,22 @@ public:
     };
 
     /**
-     * @brief BaseEstimation class constructor
+     * @brief BaseEstimation class constructor with contacts estimation
+     * @param model is a ModelInterface that is externally kept updated with the robot state
+     * @param est_model_pb is a yaml cartesio stack of tasks describing the contact and sensor model for the robot
+     * @param opt is a struct of options
+     */
+    BaseEstimation(XBot::ModelInterface::Ptr model, YAML::Node est_model_pb, Options opt = Options());
+
+    /**
+     * @brief BaseEstimation class constructor with contacts to be subscribed from ros (instead of estimated)
      * @param model is a ModelInterface that is externally kept updated with the robot state
      * @param est_model_pb is a yaml cartesio stack of tasks describing the contact and sensor model for the robot
      * @param nodehandle is necessary to be able to subscribe to the contacts planned by the planner through ContactPreplanned
      * @param opt is a struct of options
      */
-    BaseEstimation(XBot::ModelInterface::Ptr model,
-                   YAML::Node est_model_pb,
-                   ros::NodeHandle& nodehandle,
-                   Options opt = Options());
+    BaseEstimation(XBot::ModelInterface::Ptr model, YAML::Node est_model_pb,
+                   ros::NodeHandle& nodehandle, Options opt = Options());
 
     /**
      * @brief returns options associated with the estimator
@@ -211,7 +223,8 @@ private:
     XBot::MatLogger2::Ptr _logger;
 
     void handle_contact_switch(ContactHandler& fth);
-    void handle_preplanned_contact_switch(ContactHandler& fth); // ContactPreplanned
+    void handle_preplanned_contact_switch(ContactHandler& fth); // handle contact switch but for preplanned contacts
+
 
 };
 
