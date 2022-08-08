@@ -15,8 +15,7 @@ std::shared_ptr<T> task_as(Cartesian::TaskDescription::Ptr t)
 ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node contact_model_pb, Options opt):
     _model(model),
     _opt(opt),
-    _alpha(model->getMass()*9.81)/*,
-    _nodehandle(nodeHandle)*/
+    _alpha(model->getMass()*9.81)
 {
     // create ci parameters
     auto ci_params = std::make_shared<Cartesian::Parameters>(opt.dt);
@@ -29,9 +28,7 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     Cartesian::ProblemDescription ik_problem(contact_model_pb, ci_ctx);
 
     // ci
-    _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot",
-                                                          ik_problem,
-                                                          ci_ctx);
+    _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot", ik_problem, ci_ctx);
 
     // get postural task to be kept in sync with robot joint positions and velocities
     _postural = task_as<Cartesian::PosturalTask>(_ci->getTask("Postural"));
@@ -69,9 +66,7 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     Cartesian::ProblemDescription ik_problem(contact_model_pb, ci_ctx);
 
     // ci
-    _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot",
-                                                          ik_problem,
-                                                          ci_ctx);
+    _ci = Cartesian::CartesianInterfaceImpl::MakeInstance("OpenSot", ik_problem, ci_ctx);
 
     // get postural task to be kept in sync with robot joint positions and velocities
     _postural = task_as<Cartesian::PosturalTask>(_ci->getTask("Postural"));
@@ -176,12 +171,10 @@ void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames, F
 
     // contact estimator or preplanned
     if (_opt.estimate_contacts) {
-        std::cout << "Contacts to be estimated" << std::endl;
         ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
     }
     else {
         ch.contact_planned = std::make_unique<ContactPreplanned>(_nodehandle, vertex_frames);    // preplanned
-        std::cout << "Contacts are preplanend" << std::endl;
     }
     // push back contact info
     contact_info.emplace_back(ft->getSensorName(), vertex_frames);
@@ -215,17 +208,14 @@ void BaseEstimation::addRollingContact(std::string wheel_name,
     // vertex force optimizer's single vertex is located
     // at the ft frame
     ch.vertex_frames = { ft->getSensorName() };
-    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
-                                                           ch.vertex_frames,
-                                                           _model);
+    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(), ch.vertex_frames, _model);
 
     // push back contact info
     contact_info.emplace_back(ft->getSensorName(),
                               ch.vertex_frames);
 
     // contact estimator
-    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr,
-                                                         _opt.contact_attach_thr);
+    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
 
     _contact_handler.push_back(std::move(ch));
 
