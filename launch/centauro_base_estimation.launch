@@ -3,6 +3,7 @@
 <launch>
 
     <arg name="estimate_contacts" default="false"/>
+    <arg name="publish_tftopic" default="false"/>
 
     <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen">
         <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
@@ -19,6 +20,7 @@
         <param name="use_imu" value="true"/>
 
         <param name="estimate_contacts" value="$(arg estimate_contacts)"/>
+        <param name="publish_tftopic" value="$(arg publish_tftopic)"/>
 
         <remap from="/robot_description" to="/xbotcore/robot_description"/>
         <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>

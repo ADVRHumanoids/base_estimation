@@ -59,6 +59,8 @@ private:
                       const std::vector<bool>& contact_flags,
                       const std::vector<Eigen::Vector6d>& contact_wrenches);
 
+    bool _publish_tftopic;
+
 };
 
 BaseEstimationNode::BaseEstimationNode():
@@ -99,12 +101,18 @@ BaseEstimationNode::BaseEstimationNode():
     est_opt.contact_release_thr = _nhpr.param("contact_release_thr", 10.0);
     est_opt.estimate_contacts = _nhpr.param("estimate_contacts", false);
 
-    // create estimator
-    if (est_opt.estimate_contacts)
-        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);            // estimate contacts
-    else
-        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, _nhpr, est_opt);     // preplanned contacts
+    // publish or not to /tf topic
+    _publish_tftopic = _nhpr.param("publish_tftopic", false);
 
+    // create estimator
+    if (est_opt.estimate_contacts) {
+        std::cout << "Contacts to be estimated." << std::endl;
+        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);            // estimate contacts
+    }
+    else {
+        std::cout << "Contacts are preplanned." << std::endl;
+        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, _nhpr, est_opt);     // preplanned contacts
+    }
     // use imu
     if(_nhpr.param("use_imu", false))
     {
@@ -222,7 +230,8 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // publishers
-    _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
+    if (_publish_tftopic)
+        _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_pose_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/pose", 1);
     _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
@@ -311,9 +320,11 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vec
     tf.header.frame_id = "odometry/world";
     tf.header.stamp = ros::Time::now();
 
-    tf2_msgs::TFMessage msg;
-    msg.transforms.push_back(tf);
-    _base_tf_pub.publish(msg);
+    if (_publish_tftopic) {
+        tf2_msgs::TFMessage msg;
+        msg.transforms.push_back(tf);
+        _base_tf_pub.publish(msg);
+    }
 
     // publish geomsg
     _base_pose_pub.publish(tf);
