@@ -115,7 +115,7 @@ public:
      */
     XBot::ForceTorqueSensor::ConstPtr createVirtualFt(std::string link_name,
                                                     std::vector<int> dofs, 
-                                                    bool use_momentum_based = true, 
+                                                    bool use_momentum_based = false, 
                                                     double obs_bw = 15.0);
 
     /**

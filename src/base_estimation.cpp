@@ -286,13 +286,17 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     _model->setJointPosition(_q);
     _model->update();  // note: update here?
 
-    _model->getFloatingBasePose(pose);
-    _model->getFloatingBaseTwist(raw_vel);
+    if(_model->isFloatingBase())
+    {
+        _model->getFloatingBasePose(pose);
+        _model->getFloatingBaseTwist(raw_vel);
 
-    // velocity filtering
-    vel = _vel_filter->process(raw_vel);
-    _model->setFloatingBaseTwist(vel);
-    _model->update();
+        // velocity filtering
+        vel = _vel_filter->process(raw_vel);
+        _model->setFloatingBaseTwist(vel);
+
+        _model->update();
+    }
 
     _logger->add("update_time", (clock_t::now() - total_tic).count()*1e-9);
 
