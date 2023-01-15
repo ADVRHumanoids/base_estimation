@@ -77,17 +77,30 @@ ImuSensor::ConstPtr BaseEstimation::imu() const
 }
 
 ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_name,
-                                                            std::vector<int> dofs)
+                                                            std::vector<int> dofs, 
+                                                            bool use_momentum_based, 
+                                                            double obs_bw)
 {
     using namespace XBot::Cartesian::Utils;
 
     // create force estimator if needed
     if(!_fest)
-    {
-        _fest = std::make_shared<ForceEstimation>(
+    {   
+        if(use_momentum_based)
+        {
+            _fest = std::make_shared<ForceEstimationMomentumBased>(
                     _model,
-                    // 1./getPeriodSec(),  // if using residuals,
+                    1./_opt.dt, // rate @ which the obs. dynamics is integrated
+                    ForceEstimation::DEFAULT_SVD_THRESHOLD, // regularization for SVD computation
+                    obs_bw); // observer bandwidth);
+        }
+        else{
+
+            _fest = std::make_shared<ForceEstimation>(
+                    _model,
                     ForceEstimation::DEFAULT_SVD_THRESHOLD);
+        }
+        
     }
 
     // generate virtual ft

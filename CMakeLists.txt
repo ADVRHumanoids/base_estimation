@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
-project(base_estimation)
+project(base_estimation VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 14)
+set(LIBRARY_TARGET_NAME ikbe) # set library name
 
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
@@ -11,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
     visualization_msgs
     std_msgs
     message_generation)
-
 
 include_directories(include/)
 
@@ -26,24 +26,30 @@ generate_messages(
     std_msgs
     )
 
-catkin_package()
+catkin_package(INCLUDE_DIRS include
+               LIBRARIES ${LIBRARY_TARGET_NAME}
+)
 
 # compile library
-add_library(ikbe SHARED
+add_library(${LIBRARY_TARGET_NAME} SHARED
     src/base_estimation.cpp
     src/vertex_force_optimizer.cpp
     src/contact_estimation.cpp)
 
-target_link_libraries(ikbe
+target_link_libraries(${LIBRARY_TARGET_NAME}
     PUBLIC
     ${cartesian_interface_LIBRARIES}
     ${catkin_LIBRARIES}
     )
 
-install(
-    TARGETS ikbe
-    DESTINATION lib
-    )
+install(TARGETS ${LIBRARY_TARGET_NAME}
+        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+
+install(DIRECTORY include/${PROJECT_NAME}/
+    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
 
 find_package(xbot2 QUIET)
 
@@ -54,7 +60,7 @@ if(${xbot2_FOUND})
 
     target_link_libraries(base_estimation
         PRIVATE
-        ikbe
+        ${LIBRARY_TARGET_NAME}
         xbot2::xbot2_ros_support
         )
 
@@ -70,7 +76,7 @@ add_executable(base_estimation_node src/base_estimation_node.cpp)
 
 target_link_libraries(base_estimation_node
     PRIVATE
-    ikbe
+    ${LIBRARY_TARGET_NAME}
     xbot2::xbot2
     )
 
