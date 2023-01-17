@@ -76,6 +76,13 @@ public:
     Options getOptions() const;
 
     /**
+     * @brief CreateDummyFtSensor
+     * @param name
+     * @return
+     */
+    static XBot::ForceTorqueSensor::Ptr CreateDummyFtSensor(std::string name);
+
+    /**
      * @brief ci returns the internal cartesio object
      */
     XBot::Cartesian::CartesianInterfaceImpl::Ptr ci() const;

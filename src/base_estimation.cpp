@@ -52,6 +52,13 @@ BaseEstimation::Options BaseEstimation::getOptions() const
     return _opt;
 }
 
+ForceTorqueSensor::Ptr BaseEstimation::CreateDummyFtSensor(std::string name)
+{
+    auto ret = std::make_shared<ForceTorqueSensor>();
+    ret->setWrench(Eigen::Vector6d::Zero(), 0.0);
+    return ret;
+}
+
 Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
 {
     return _ci;
