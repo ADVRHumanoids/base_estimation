@@ -1,6 +1,8 @@
 #include <ros/ros.h>
 #include <tf2_msgs/TFMessage.h>
 #include <tf2_eigen/tf2_eigen.h>
+#include <tf/transform_listener.h>
+#include <tf_conversions/tf_eigen.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
@@ -10,6 +12,7 @@
 #include <XBotInterface/RobotInterface.h>
 #include <matlogger2/matlogger2.h>
 #include <xbot2/journal/journal.h>
+#include <cartesian_interface/utils/RobotStatePublisher.h>
 
 #include <base_estimation/base_estimation.h>
 #include <base_estimation/ContactsStatus.h>
@@ -42,6 +45,8 @@ private:
     XBot::ModelInterface::Ptr _model;
     ikbe::BaseEstimation::UniquePtr _est;
 
+    std::unique_ptr<XBot::Cartesian::Utils::RobotStatePublisher> _rspub;
+
     std::string _odom_frame;
 
     ros::Publisher _base_tf_pub;
@@ -49,6 +54,8 @@ private:
     ros::Publisher _base_twist_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
+
+    ros::Time _last_now;
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
@@ -77,6 +84,12 @@ BaseEstimationNode::BaseEstimationNode():
     // set model to the robot state
     _robot->sense(false);
     _model->syncFrom(*_robot);
+
+    // rspub
+    if(_nhpr.param<bool>("publish_tf", false))
+    {
+        _rspub = std::make_unique<XBot::Cartesian::Utils::RobotStatePublisher>(_model);
+    }
 
     // load problem
     std::string ik_problem_str;
@@ -115,9 +128,42 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // set world frame coincident to given link
+    std::string world_from_tf = _nhpr.param("world_from_tf", ""s);
+    if(world_from_tf != "")
+    {
+        tf::TransformListener tl;
+
+        std::string floating_base_link;
+        _model->getFloatingBaseLink(floating_base_link);
+
+        std::string err;
+        if(!tl.waitForTransform(world_from_tf,
+                                floating_base_link,
+                                ros::Time(0), ros::Duration(5.0), ros::Duration(0.01), &err))
+        {
+            ROS_ERROR("tf lookup failed: %s", err.c_str());
+            exit(1);
+        }
+
+        tf::StampedTransform tf;
+        tl.lookupTransform(world_from_tf,
+                           floating_base_link,
+                           ros::Time(0),
+                           tf);
+
+
+        Eigen::Affine3d fb_T_l;
+        tf::transformTFToEigen(tf, fb_T_l);
+
+        _model->setFloatingBasePose(fb_T_l);
+        _model->update();
+    }
+
+    // set world frame from given tf
     std::string world_frame_link = _nhpr.param("world_frame_link", ""s);
     if(world_frame_link != "")
     {
+
         Eigen::Affine3d fb_T_l;
         std::string floating_base_link;
         _model->getFloatingBaseLink(floating_base_link);
@@ -140,6 +186,10 @@ BaseEstimationNode::BaseEstimationNode():
     // get it from parameters
     _nhpr.getParam("rolling_contacts", rolling_contacts);
 
+    // z force override
+    std::map<std::string, double> z_force_override;
+    _nhpr.getParam("z_force_override", z_force_override);
+
     for(auto rc : rolling_contacts)
     {
         auto ft_name = rc.first;
@@ -152,7 +202,16 @@ BaseEstimationNode::BaseEstimationNode():
         XBot::ForceTorqueSensor::ConstPtr ft;
 
         // add ft (either real or virtual)
-        if(ft_map.count(ft_name) > 0)
+        if(z_force_override.count(ft_name))
+        {
+            auto dummy_ft = ikbe::BaseEstimation::CreateDummyFtSensor(ft_name);
+            dummy_ft->setForce(z_force_override.at(ft_name) * Eigen::Vector3d::UnitZ(),
+                               0.0);  // useless timestamp
+            jinfo("created dummy ft {} for wheel {}, fz = {}",
+                  ft_name, wh_name, z_force_override.at(ft_name));
+            ft = dummy_ft;
+        }
+        else if(ft_map.count(ft_name) > 0)
         {
             ft = ft_map.at(ft_name);
         }
@@ -284,17 +343,32 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
                                       const Eigen::Vector6d& v,
                                       const Eigen::Vector6d& raw_v)
 {
+    // protect against duplicated tf warning
+    auto now = ros::Time::now();
+
+    if(now == _last_now)
+    {
+        return;
+    }
+
+    _last_now = now;
+
     // publish tf
     geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
-    tf.child_frame_id = base_link;
+    tf.child_frame_id = "odometry/base_link";
     tf.header.frame_id = "odometry/world";
-    tf.header.stamp = ros::Time::now();
+    tf.header.stamp = now;
 
-    tf2_msgs::TFMessage msg;
-    msg.transforms.push_back(tf);
-    _base_tf_pub.publish(msg);
+    if(_rspub)
+    {
+        _rspub->publishTransforms(now, "odometry");
+    }
+
+//    tf2_msgs::TFMessage msg;
+//    msg.transforms.push_back(tf);
+//    _base_tf_pub.publish(msg);
 
     // publish geomsg
     _base_pose_pub.publish(tf);

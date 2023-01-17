@@ -1,19 +1,25 @@
 cmake_minimum_required(VERSION 3.0)
 project(base_estimation)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
 find_package(cartesian_interface REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
+    roscpp
     visualization_msgs
     std_msgs
+    gazebo_msgs
+    tf_conversions
+    eigen_conversions
     message_generation)
 
 
-include_directories(include/)
+include_directories(
+    include/
+    ${catkin_INCLUDE_DIRS})
 
 add_message_files(
     FILES
@@ -33,6 +39,8 @@ add_library(ikbe SHARED
     src/base_estimation.cpp
     src/vertex_force_optimizer.cpp
     src/contact_estimation.cpp)
+
+add_dependencies(ikbe ${PROJECT_NAME}_generate_messages)
 
 target_link_libraries(ikbe
     PUBLIC
