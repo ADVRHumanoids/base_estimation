@@ -87,6 +87,20 @@ install(
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     )
 
+# compile gazebo tf publisher
+add_executable(gazebo_tf_publisher src/gazebo_tf_publisher.cpp)
+
+target_link_libraries(gazebo_tf_publisher
+    PRIVATE
+    ${catkin_LIBRARIES}
+    )
+
+install(
+    TARGETS gazebo_tf_publisher
+    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    )
+
+
 # compile cartesio rt
 add_subdirectory(cartesio)
 
