@@ -4,6 +4,7 @@ project(base_estimation)
 set(CMAKE_CXX_STANDARD 17)
 
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
+option(COMPILE_CARTESIO_PLUGIN OFF "Compile Cartesio RT plugin")
 
 find_package(cartesian_interface REQUIRED)
 
@@ -102,7 +103,9 @@ install(
 
 
 # compile cartesio rt
-add_subdirectory(cartesio)
+if(${COMPILE_CARTESIO_PLUGIN})
+    add_subdirectory(cartesio)
+endif()
 
 # install files
 install(
