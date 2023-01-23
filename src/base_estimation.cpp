@@ -286,6 +286,9 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
             {
                 if(!fthandler.contact_planned->getContactState())
                     _weights[i] = 0;
+            } else {        // contact estimation
+                if(!fthandler.contact_est->getContactState())
+                    _weights[i] = 0;
             }
 
             int size = fthandler.vertex_tasks[i]->getSize();
