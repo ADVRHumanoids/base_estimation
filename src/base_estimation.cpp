@@ -456,6 +456,11 @@ void BaseEstimation::handle_preplanned_contact_switch(BaseEstimation::ContactHan
         for(auto t : fth.vertex_tasks)
         {
             t->reset();
+            // set pose reference for contact frames to zero height, this is to deal with contact detection
+            Eigen::Affine3d taskReference;
+            task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
+            taskReference.translation().z() = 0.0;
+            task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
         }
     }
 }
