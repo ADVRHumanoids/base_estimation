@@ -7,6 +7,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <tf/transform_datatypes.h>
+#include <nav_msgs/Odometry.h>
 
 #include <RobotInterfaceROS/ConfigFromParam.h>
 #include <XBotInterface/RobotInterface.h>
@@ -48,10 +49,14 @@ private:
     std::unique_ptr<XBot::Cartesian::Utils::RobotStatePublisher> _rspub;
 
     std::string _odom_frame;
+    std::string _tf_prefix;
+    double _pose_lin_cov, _pose_rot_cov;
+    double _vel_lin_cov, _vel_rot_cov;
 
     ros::Publisher _base_tf_pub;
     ros::Publisher _base_pose_pub;
     ros::Publisher _base_twist_pub;
+    ros::Publisher _base_odom_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
 
@@ -89,6 +94,11 @@ BaseEstimationNode::BaseEstimationNode():
     if(_nhpr.param<bool>("publish_tf", false))
     {
         _rspub = std::make_unique<XBot::Cartesian::Utils::RobotStatePublisher>(_model);
+    }
+
+    if(!_nhpr.getParam("tf_prefix", _tf_prefix))
+    {
+        _tf_prefix = "odometry";
     }
 
     // load problem
@@ -224,8 +234,8 @@ BaseEstimationNode::BaseEstimationNode():
         _est->addRollingContact(wh_name, ft);
 
         jinfo("adding rolling contact (ft: '{}', wheel: '{}')",
-                ft_name,
-                wh_name);
+              ft_name,
+              wh_name);
     }
 
     // surface contacts (including point contacts)
@@ -265,8 +275,8 @@ BaseEstimationNode::BaseEstimationNode():
         _est->addSurfaceContact(vertices, ft);
 
         jinfo("adding surface contact '{}' with vertices: [{}]",
-                ft_name,
-                fmt::join(vertices, ", "));
+              ft_name,
+              fmt::join(vertices, ", "));
     }
 
     // publishers
@@ -275,9 +285,16 @@ BaseEstimationNode::BaseEstimationNode():
     _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
+    _base_odom_pub = _nhpr.advertise<nav_msgs::Odometry>("base_link/odom", 1);
 
     // odom frame name
-    _odom_frame = _nhpr.param("odom_frame", "odometry/world"s);
+    _odom_frame = _nhpr.param("odom_frame", "world"s);
+
+    // covariance
+    _pose_lin_cov = _nhpr.param("pose_lin_cov", 1.0);
+    _pose_rot_cov = _nhpr.param("pose_rot_cov", 1.0);
+    _vel_lin_cov = _nhpr.param("vel_lin_cov", 1.0);
+    _vel_rot_cov = _nhpr.param("vel_rot_cov", 1.0);
 
     // filter params
     double filter_param = 0.;
@@ -354,32 +371,61 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     _last_now = now;
 
     // publish tf
+    if(_rspub)
+    {
+        _rspub->publishTransforms(now, _tf_prefix);
+    }
+
+    // publish transform
     geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
-    tf.child_frame_id = "odometry/base_link";
-    tf.header.frame_id = "odometry/world";
+    tf.child_frame_id = _tf_prefix + "/" + base_link;
+    tf.header.frame_id = _tf_prefix + "/world";
     tf.header.stamp = now;
-
-    if(_rspub)
-    {
-        _rspub->publishTransforms(now, "odometry");
-    }
-
-//    tf2_msgs::TFMessage msg;
-//    msg.transforms.push_back(tf);
-//    _base_tf_pub.publish(msg);
-
-    // publish geomsg
     _base_pose_pub.publish(tf);
 
-    geometry_msgs::TwistStamped Vmsg;
-    Vmsg.header = tf.header;
-    tf::twistEigenToMsg(v, Vmsg.twist);
-    _base_twist_pub.publish(Vmsg);
+    // publish local twist
+    Eigen::Vector6d v_local;
+    v_local << T.linear().transpose()*v.head<3>(),
+               T.linear().transpose()*v.tail<3>();
 
-    tf::twistEigenToMsg(raw_v, Vmsg.twist);
-    _base_raw_twist_pub.publish(Vmsg);
+    geometry_msgs::TwistStamped twist_msg;
+    twist_msg.header.stamp = now;
+    twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+
+    tf::twistEigenToMsg(v_local, twist_msg.twist);
+    _base_twist_pub.publish(twist_msg);
+
+    // publish local raw twist
+    Eigen::Vector6d raw_v_local;
+    raw_v_local << T.linear().transpose()*raw_v.head<3>(),
+                   T.linear().transpose()*raw_v.tail<3>();
+
+    geometry_msgs::TwistStamped raw_twist_msg;
+    raw_twist_msg.header.stamp = now;
+    raw_twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+
+    tf::twistEigenToMsg(raw_v_local, raw_twist_msg.twist);
+    _base_raw_twist_pub.publish(raw_twist_msg);
+
+    // publish odom
+    nav_msgs::Odometry odom_msg;
+    odom_msg.header = tf.header;
+    odom_msg.child_frame_id = tf.child_frame_id;
+    tf::poseEigenToMsg(T, odom_msg.pose.pose);
+    odom_msg.twist.twist = twist_msg.twist;
+
+    // set covariance
+    auto pose_cov = Eigen::Matrix6d::Map(odom_msg.pose.covariance.data());
+    pose_cov.diagonal().head<3>().setConstant(_pose_lin_cov);
+    pose_cov.diagonal().tail<3>().setConstant(_pose_rot_cov);
+
+    auto vel_cov = Eigen::Matrix6d::Map(odom_msg.twist.covariance.data());
+    vel_cov.diagonal().head<3>().setConstant(_vel_lin_cov);
+    vel_cov.diagonal().tail<3>().setConstant(_vel_rot_cov);
+
+    _base_odom_pub.publish(odom_msg);
 }
 
 int main(int argc, char **argv)
