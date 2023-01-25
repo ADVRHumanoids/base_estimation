@@ -116,8 +116,8 @@ public:
     XBot::ForceTorqueSensor::ConstPtr createVirtualFt(std::string link_name,
                                                     std::vector<int> dofs, 
                                                     bool use_momentum_based = false, 
-                                                    double obs_bw = 15.0,
-                                                    double svd_thresh = 0.05);
+                                                    double svd_thresh = 0.05,
+                                                    double obs_bw = 15.0);
 
     /**
      * @brief adds a surface contact to the estimator contact model

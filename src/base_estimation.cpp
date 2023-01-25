@@ -92,8 +92,8 @@ ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_nam
             _fest = std::make_shared<ForceEstimationMomentumBased>(
                     _model,
                     1./_opt.dt, // rate @ which the obs. dynamics is integrated
-                    obs_bw, // regularization for SVD computation
-                    svd_thresh); // observer bandwidth);
+                    svd_thresh, // regularization for SVD computation
+                    obs_bw); // observer bandwidth);
         }
         else{
 
