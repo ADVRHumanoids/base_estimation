@@ -354,6 +354,9 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vec
         tf::wrenchEigenToMsg(contact_wrenches[i], singleWrenchMsg.wrench);
         singleWrenchMsg.header = tf.header;
         wrenchMsg.contacts_wrench.emplace_back(singleWrenchMsg);
+        auto forceNorm = sqrt(singleWrenchMsg.wrench.force.x*singleWrenchMsg.wrench.force.x + singleWrenchMsg.wrench.force.y*singleWrenchMsg.wrench.force.y +
+                              singleWrenchMsg.wrench.force.z*singleWrenchMsg.wrench.force.z);
+        wrenchMsg.force_norm.emplace_back(forceNorm);
     }
     _wrenches_pub.publish(wrenchMsg);
 }
