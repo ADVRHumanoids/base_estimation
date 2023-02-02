@@ -16,20 +16,20 @@ ContactEstimation::ContactEstimation(double release_thr,
     }
 }
 
-ContactEstimation::Event ContactEstimation::update(double f_n)
+ContactEstimation::Event ContactEstimation::update(double f)
 {
     // take abs val
-    f_n = std::fabs(f_n);
+    f = std::fabs(f);
 
     // contact to be deactivated
-    if(_contact_state && f_n < _release_thr)
+    if(_contact_state && f < _release_thr)
     {
         _contact_state = false;
         return Event::Released;
     }
 
     // contact to be activated
-    if(!_contact_state && f_n > _attach_thr)
+    if(!_contact_state && f > _attach_thr)
     {
         _contact_state = true;
         return Event::Attached;

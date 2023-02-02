@@ -349,11 +349,10 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     Eigen::Vector3d f;
     fth.ft->getForce(f);
 
-    // note: normal always local z-axis?
-    double f_n = f.z();
+    // we check the norm of the force vector
+    double f_norm = f.norm();
 
-    // if contact is created..
-    if(fth.contact_est->update(f_n) ==
+    if(fth.contact_est->update(f_norm) ==
             ContactEstimation::Event::Attached)
     {
         // reset reference for all vertex frames
