@@ -431,16 +431,21 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     fth.ft->getForce(f);
 
     // note: normal always local z-axis?
-    double f_n = f.z();
+    double f_norm = sqrt(f.x()*f.x() + f.y()*f.y() + f.z()*f.z());
 
     // if contact is created..
-    if(fth.contact_est->update(f_n) ==
+    if(fth.contact_est->update(f_norm) ==
             ContactEstimation::Event::Attached)
     {
         // reset reference for all vertex frames
         for(auto t : fth.vertex_tasks)
         {
             t->reset();
+            // set pose reference for contact frames to zero height, this is to deal with contact detection
+            Eigen::Affine3d taskReference;
+            task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
+            taskReference.translation().z() = 0.0;
+            task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
         }
     }
 }
