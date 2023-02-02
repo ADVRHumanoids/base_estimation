@@ -51,12 +51,14 @@ private:
     ros::Publisher _base_twist_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
+    ros::Publisher _haptic_contacts_state_pub;
     ros::Publisher _wrenches_pub;
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
                       const Eigen::Vector6d& raw_v,
                       const std::vector<bool>& contact_flags,
+                      const std::vector<bool>& haptic_contact_flags,
                       const std::vector<Eigen::Vector6d>& contact_wrenches);
 
     bool _publish_tftopic;
@@ -107,12 +109,12 @@ BaseEstimationNode::BaseEstimationNode():
     // create estimator
     if (est_opt.estimate_contacts) {
         std::cout << "Contacts to be estimated." << std::endl;
-        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, est_opt);            // estimate contacts
     }
     else {
         std::cout << "Contacts are preplanned." << std::endl;
-        _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, _nhpr, est_opt);     // preplanned contacts
     }
+    _est = std::make_unique<ikbe::BaseEstimation>(_model, ik_problem_yaml, _nhpr, est_opt);
+
     // use imu
     if(_nhpr.param("use_imu", false))
     {
@@ -237,6 +239,7 @@ BaseEstimationNode::BaseEstimationNode():
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
     _wrenches_pub = _nhpr.advertise<base_estimation::ContactsWrench>("contacts/wrench", 1);
+    _haptic_contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/haptic_status", 1);
 
     // odom frame name
     _odom_frame = _nhpr.param("odom_frame", "odometry/world"s);
@@ -297,19 +300,22 @@ bool BaseEstimationNode::run()
     // contact status and contact wrenches
     std::vector<Eigen::Vector6d> wrenches(4);
     std::vector<bool> contacts(4);
+    std::vector<bool> haptic_contacts(4);
     for (int i = 0; i < contacts.size(); i++) {
         contacts[i] = _est->contact_info[i].contact_state;
+        haptic_contacts[i] = _est->contact_info[i].contact_haptic_state;
         wrenches[i] = _est->contact_info[i].wrench;
     }
 
     // base state broadcast in ROS
-    publishToROS(base_pose, base_vel, raw_base_vel, contacts, wrenches);
+    publishToROS(base_pose, base_vel, raw_base_vel, contacts, haptic_contacts, wrenches);
 
     return true;
 }
 
 void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vector6d& v, const Eigen::Vector6d& raw_v,
                                       const std::vector<bool>& contact_flags,
+                                      const std::vector<bool>& haptic_contact_flags,
                                       const std::vector<Eigen::Vector6d>& contact_wrenches)
 {
     // publish tf
@@ -339,13 +345,19 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T, const Eigen::Vec
 
     // publish contact status
     base_estimation::ContactsStatus contactsMsg;
+    base_estimation::ContactsStatus hapticContactsMsg;
     base_estimation::ContactStatus singleContactMsg;
     for (int i = 0; i < contact_flags.size(); i++) {            // fill message
         singleContactMsg.status = contact_flags[i];
         singleContactMsg.header = tf.header;
         contactsMsg.contacts_status.emplace_back(singleContactMsg);
+
+        // hapic contact msg
+        singleContactMsg.status = haptic_contact_flags[i];
+        hapticContactsMsg.contacts_status.emplace_back(singleContactMsg);
     }
     _contacts_state_pub.publish(contactsMsg);
+    _haptic_contacts_state_pub.publish(hapticContactsMsg);   // publish contact haptic status
 
     // publish contact wrench
     geometry_msgs::WrenchStamped singleWrenchMsg;

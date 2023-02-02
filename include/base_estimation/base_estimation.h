@@ -182,6 +182,7 @@ public:
         std::vector<std::string> vertex_frames;
         std::vector<double> vertex_weights;
         bool contact_state;
+        bool contact_haptic_state;   // from haptic, equal to contact_state if estimate_contacts = true
 
         ContactInformation(std::string name, std::vector<std::string> vertex_frames);
     };

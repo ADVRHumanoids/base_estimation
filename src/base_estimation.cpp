@@ -169,13 +169,10 @@ void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames, F
     ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(), vertex_frames, _model);
     ch.vertex_frames = vertex_frames;
 
-    // contact estimator or preplanned
-    if (_opt.estimate_contacts) {
-        ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
-    }
-    else {
-        ch.contact_planned = std::make_unique<ContactPreplanned>(_nodehandle, vertex_frames);    // preplanned
-    }
+    // create both contact estimation and preplanned since both info will be published
+    ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
+    ch.contact_planned = std::make_unique<ContactPreplanned>(_nodehandle, vertex_frames);    // preplanned
+
     // push back contact info
     contact_info.emplace_back(ft->getSensorName(), vertex_frames);
 
@@ -307,10 +304,13 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         if (_opt.estimate_contacts) {
             handle_contact_switch(fthandler);
             contact_info[i].contact_state = fthandler.contact_est->getContactState();
+            contact_info[i].contact_haptic_state = contact_info[i].contact_state;
         }
         else {
             handle_preplanned_contact_switch(fthandler);
+            handle_contact_switch(fthandler);
             contact_info[i].contact_state = fthandler.contact_planned->getContactState();
+            contact_info[i].contact_haptic_state = fthandler.contact_est->getContactState();
         }
         // save weights
         Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(), _weights.size()) = _weights;
@@ -475,7 +475,8 @@ BaseEstimation::ContactInformation::ContactInformation(std::string _name, std::v
     name(_name),
     vertex_frames(_vertex_frames),
     vertex_weights(_vertex_frames.size(), 0.0),
-    contact_state(true)
+    contact_state(true),
+    contact_haptic_state(true)
 {
     wrench.setZero();
 }
