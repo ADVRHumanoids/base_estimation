@@ -301,16 +301,16 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         }
 
         // save contact state from estimation or preplanned
-        if (_opt.estimate_contacts) {
-            handle_contact_switch(fthandler);
-            contact_info[i].contact_state = fthandler.contact_est->getContactState();
-            contact_info[i].contact_haptic_state = contact_info[i].contact_state;
+        if (i == 0) {           // TODO: only temporary hack for pawup
+            handle_contact_switch(fthandler);       // save haptic state
         }
-        else {
+        contact_info[i].contact_haptic_state = fthandler.contact_est->getContactState();
+        if (_opt.estimate_contacts) {       // if contact status is estimated use previous info
+            contact_info[i].contact_state = contact_info[i].contact_haptic_state;
+        }
+        else {      // else if preplanned
             handle_preplanned_contact_switch(fthandler);
-            handle_contact_switch(fthandler);
             contact_info[i].contact_state = fthandler.contact_planned->getContactState();
-            contact_info[i].contact_haptic_state = fthandler.contact_est->getContactState();
         }
         // save weights
         Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(), _weights.size()) = _weights;
