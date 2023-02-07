@@ -434,8 +434,8 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     double f_norm = sqrt(f.x()*f.x() + f.y()*f.y() + f.z()*f.z());
 
     // if contact is created..
-    if(fth.contact_est->update(f_norm) ==
-            ContactEstimation::Event::Attached)
+    auto contactEvent = fth.contact_est->update(f_norm);        // updates contact status with events
+    if(contactEvent == ContactEstimation::Event::Attached)
     {
         // reset reference for all vertex frames
         for(auto t : fth.vertex_tasks)
@@ -456,7 +456,8 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
 void BaseEstimation::handle_preplanned_contact_switch(BaseEstimation::ContactHandler& fth)
 {
     // if contact is created..
-    if (fth.contact_planned->update() == ContactPreplanned::Event::Attached)
+    auto contactEvent = fth.contact_planned->update();        // updates contact status with events
+    if (contactEvent == ContactPreplanned::Event::Attached)
     {
 //        std::cout << "ContactPreplanned::Event::Attached" << std::endl;
 

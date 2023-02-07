@@ -35,7 +35,7 @@ ContactEstimation::Event ContactEstimation::update(double f_n)
     }
 
     // contact to be activated
-    if(!_contact_state && f_n > _attach_thr)
+    else if(!_contact_state && f_n > _attach_thr)
     {
         _contact_state = true;
         return Event::Attached;
