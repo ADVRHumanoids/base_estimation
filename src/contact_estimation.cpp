@@ -60,7 +60,7 @@ ContactPreplanned::ContactPreplanned(ros::NodeHandle& nodeHandle, std::vector<st
     : _nodehandle(nodeHandle), _current_mode(15), _contact_state(true), _contact_index(vertices2ContactIndex(vertices_name))
     , _previous_contact_state(true)
 {
-    _mpc_observation_pub = _nodehandle.subscribe("/legged_robot_mpc_observation", 1,
+    _mpc_observation_sub = _nodehandle.subscribe("/legged_robot_mpc_observation", 1,
                                                  &ContactPreplanned::mpcObservationCallback, this,
                                                  ros::TransportHints().tcpNoDelay());
 }

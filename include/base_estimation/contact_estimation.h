@@ -88,7 +88,7 @@ private:
     // maps vertice name (for centauro the point contact frame) to contact index from 0 to 3
     int vertices2ContactIndex(std::vector<std::string> vertices_name);
 
-    ros::Subscriber _mpc_observation_pub;
+    ros::Subscriber _mpc_observation_sub;
     ros::NodeHandle _nodehandle;
 
     int _current_mode;               // mode is defined in ocs2 as an integer that describes the contact status of all leg contacts
