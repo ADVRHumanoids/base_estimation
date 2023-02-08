@@ -301,7 +301,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         }
 
         // save contact state from estimation or preplanned
-        if (i == 0) {           // TODO: only temporary hack for pawup
+        if (true) {           // TODO: only temporary hack for pawup
             handle_contact_switch(fthandler);       // save haptic state
         }
         contact_info[i].contact_haptic_state = fthandler.contact_est->getContactState();
