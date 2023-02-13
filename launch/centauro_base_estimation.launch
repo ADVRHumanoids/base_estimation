@@ -5,8 +5,9 @@
     <arg name="gdb"                default="false"/>
     <arg name="estimate_contacts" default="false"/>
     <arg name="publish_tftopic" default="false"/>
-
-    <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen">
+    <arg name="launch-prefix" default=""/>
+    
+    <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen" launch-prefix="$(arg launch-prefix)">
         <param name="rate" value="500.0"/>
         <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
         <param name="contact_attach_thr" value="170.0"/>
