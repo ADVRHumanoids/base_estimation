@@ -350,9 +350,11 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
     fth.ft->getForce(f);
 
     // we check the norm of the force vector
-    double f_norm = f.norm();
+//    double f_norm = f.norm();
 
-    if(fth.contact_est->update(f_norm) ==
+    double fz = f(2); // we check the z-local component
+
+    if(fth.contact_est->update(fz) ==
             ContactEstimation::Event::Attached)
     {
         // reset reference for all vertex frames
