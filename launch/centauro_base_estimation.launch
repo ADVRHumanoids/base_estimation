@@ -18,6 +18,8 @@
         <param name="surface_contacts/contact_2" value="contact_2"/>
         <param name="surface_contacts/contact_3" value="contact_3"/>
         <param name="surface_contacts/contact_4" value="contact_4"/>
+        <param name="arm_surface_contacts/arm1_8" value="arm1_8"/>
+        <param name="arm_surface_contacts/arm2_8" value="arm2_8"/>
 
         <param name="use_imu" value="true"/>
 

@@ -4,7 +4,7 @@ solver_options:
     front_end: ihqp
 
 stack:
-     - [LF, RF, LR, RR, IMU]
+     - [LF, RF, LR, RR, LA, RA, IMU]
 
 constraints: [Postural]
 
@@ -51,5 +51,17 @@ LR:
 RR:
     type: Cartesian
     distal_link: contact_4
+    lambda: *vertex_lam
+    indices: [0,1,2]
+
+LA:
+    type: Cartesian
+    distal_link: arm1_8
+    lambda: *vertex_lam
+    indices: [0,1,2]
+
+RA:
+    type: Cartesian
+    distal_link: arm2_8
     lambda: *vertex_lam
     indices: [0,1,2]
