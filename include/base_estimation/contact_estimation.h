@@ -9,8 +9,6 @@
 namespace ikbe
 {
 
-using contact_flag_t = std::array<bool, 4>;
-
 /**
  * @brief The ContactEstimation class implements a minimalistic
  * Schmitt Trigger to estimate the contact state based on normal
@@ -81,12 +79,12 @@ public:
     bool getContactState() const;
 
 private:
-    // maps mode number as exited from ocs2 mpc to contact flags for the 4 legs, copied from ocs2_legged_robot
-    contact_flag_t modeNumber2StanceLeg(int modeNumber);
     void mpcObservationCallback(const ocs2_msgs::mpc_observationConstPtr& msg);
 
     // maps vertice name (for centauro the point contact frame) to contact index from 0 to 3
     int vertices2ContactIndex(std::vector<std::string> vertices_name);
+
+    bool isArm(const std::string& vertex_frame) const;
 
     ros::Subscriber _mpc_observation_sub;
     ros::NodeHandle _nodehandle;

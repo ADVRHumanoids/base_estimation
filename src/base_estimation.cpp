@@ -276,7 +276,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         _weights /= _alpha;
 
         // set weights to tasks
-        for(size_t i = 0; i < fthandler.vertex_tasks.size(); ++i)
+        for(size_t i = 0; i < fthandler.vertex_tasks.size(); ++i)       // loop over vertices (although for point contacts there is only one vertex)
         {
             // preplanned contacts case: set zero weight for swing legs reduces drift
             if (!_opt.estimate_contacts)

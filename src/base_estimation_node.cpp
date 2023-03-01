@@ -62,6 +62,7 @@ private:
                       const std::vector<Eigen::Vector6d>& contact_wrenches);
 
     bool _publish_tftopic;
+    int _contacts_number;   // the total number of contacts
 
 };
 
@@ -197,39 +198,48 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // surface contacts (including point contacts)
-    std::map<std::string, std::string> surface_contacts;
-    _nhpr.getParam("surface_contacts", surface_contacts);
+    std::map<std::string, std::string> surface_contacts, arm_surface_contacts;
+    _nhpr.getParam("surface_contacts", surface_contacts);                              // first get feet
+    _nhpr.getParam("arm_surface_contacts", arm_surface_contacts);                         // then arms
 
-    for(auto sc : surface_contacts)
-    {
-        // save force-torque name
-        auto ft_name = sc.first;
-        auto vertex_prefix = sc.second;
+    std::vector<std::map<std::string, std::string>> mapsVector = {surface_contacts, arm_surface_contacts};
 
-        // retrieve foot corner frames based on
-        // the given prefix
-        auto vertices = ikbe_common::footFrames(*_est->ci(),
-                                                vertex_prefix);
+    for (auto contact_species : mapsVector) {
+        for(auto sc : contact_species)
+        {
+            // save force-torque name
+            auto ft_name = sc.first;
+            auto vertex_prefix = sc.second;
 
-        // map of available ft sensors
-        auto ft_map = _robot->getForceTorque();
+            // retrieve foot corner frames based on
+            // the given prefix
+            auto vertices = ikbe_common::footFrames(*_est->ci(),
+                                                    vertex_prefix);
 
-        // ft for contact detection
-        XBot::ForceTorqueSensor::ConstPtr ft;
+            // map of available ft sensors
+            auto ft_map = _robot->getForceTorque();
 
-        // add ft (either real or virtual)
-        if(ft_map.count(ft_name) > 0)
-            ft = ft_map.at(ft_name);
-        else
-            ft = _est->createVirtualFt(ft_name, {0, 1, 2});
+            // ft for contact detection
+            XBot::ForceTorqueSensor::ConstPtr ft;
 
-        // create contact
-        _est->addSurfaceContact(vertices, ft);
+            // add ft (either real or virtual)
+            if(ft_map.count(ft_name) > 0)
+                ft = ft_map.at(ft_name);
+            else
+                ft = _est->createVirtualFt(ft_name, {0, 1, 2});
 
-        jinfo("adding surface contact '{}' with vertices: [{}]",
-                ft_name,
-                fmt::join(vertices, ", "));
+            // create contact
+            if (!vertices.empty())
+                _est->addSurfaceContact(vertices, ft);
+
+            jinfo("adding surface contact '{}' with vertices: [{}]",
+                    ft_name,
+                    fmt::join(vertices, ", "));
+        }
     }
+
+    // set number of total contact
+    _contacts_number = rolling_contacts.size() + surface_contacts.size() + arm_surface_contacts.size();
 
     // publishers
     if (_publish_tftopic)
@@ -298,9 +308,9 @@ bool BaseEstimationNode::run()
     // tbd publishVertexWeights();
 
     // contact status and contact wrenches
-    std::vector<Eigen::Vector6d> wrenches(4);
-    std::vector<bool> contacts(4);
-    std::vector<bool> haptic_contacts(4);
+    std::vector<Eigen::Vector6d> wrenches(_contacts_number);
+    std::vector<bool> contacts(_contacts_number);
+    std::vector<bool> haptic_contacts(_contacts_number);
     for (int i = 0; i < contacts.size(); i++) {
         contacts[i] = _est->contact_info[i].contact_state;
         haptic_contacts[i] = _est->contact_info[i].contact_haptic_state;

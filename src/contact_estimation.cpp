@@ -2,6 +2,9 @@
 #include <cmath>
 #include <stdexcept>
 
+#include "common.h"
+
+
 using namespace ikbe;
 
 /* *************************************************************************
@@ -57,29 +60,44 @@ bool ContactEstimation::getContactState() const
  * ************************ ContactPreplanned ******************************
  * *************************************************************************/
 ContactPreplanned::ContactPreplanned(ros::NodeHandle& nodeHandle, std::vector<std::string> vertices_name)
-    : _nodehandle(nodeHandle), _current_mode(15), _contact_state(true), _contact_index(vertices2ContactIndex(vertices_name))
-    , _previous_contact_state(true)
+    : _nodehandle(nodeHandle), _current_mode(15), _contact_state(true), _previous_contact_state(true)
 {
+    _contact_index = vertices2ContactIndex(vertices_name);
     _mpc_observation_sub = _nodehandle.subscribe("/legged_robot_mpc_observation", 1,
                                                  &ContactPreplanned::mpcObservationCallback, this,
                                                  ros::TransportHints().tcpNoDelay());
+    if (isArm(vertices_name.front())) {
+        _contact_state = false;
+        _previous_contact_state = false;
+    }
 }
 
 /* *************************************************************************
  * *************************************************************************
  * *************************************************************************/
 int ContactPreplanned::vertices2ContactIndex(std::vector<std::string> vertices_name) {
+
+    std::map<std::string, std::string> surface_contacts, arm_surface_contacts;
+    _nodehandle.getParam("surface_contacts", surface_contacts);                              // first get feet
+    _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);                         // then arms
+
     int contact_index;
-    if (vertices_name.at(0) == "contact_1")
+    if (isArm(vertices_name.front())) {     // for arm contact
+        contact_index = 4;
+        for (auto& frame : arm_surface_contacts) {
+            if (vertices_name.front() == frame.first)
+                break;
+            contact_index++;
+        }
+    } else {                                // for feet contact
         contact_index = 0;
-    else if (vertices_name.at(0) == "contact_2")
-        contact_index = 1;
-    else if (vertices_name.at(0) == "contact_3")
-        contact_index = 2;
-    else if (vertices_name.at(0) == "contact_4")
-        contact_index = 3;
-    else
-        std::cout << "Unknown vertice name" << std::endl;
+        for (auto& frame : surface_contacts) {
+            if (vertices_name.front() == frame.first)
+                break;
+            contact_index++;
+        }
+    }
+
     return contact_index;
 }
 
@@ -90,7 +108,7 @@ void ContactPreplanned::mpcObservationCallback(const ocs2_msgs::mpc_observationC
     _current_mode = msg->mode;
 //    update();
     // check that within the callback even should not be returned. callback should just update the flags
-    contact_flag_t contacts_state = modeNumber2StanceLeg(_current_mode);
+    auto contacts_state = ocs2::legged_robot::modeNumber2ActiveContacts(_current_mode);
     _contact_state = contacts_state.at(_contact_index);
 }
 
@@ -129,68 +147,21 @@ ContactPreplanned::Event ContactPreplanned::update()
 /* *************************************************************************
  * *************************************************************************
  * *************************************************************************/
-contact_flag_t ContactPreplanned::modeNumber2StanceLeg(int modeNumber) {
-    contact_flag_t stanceLegs;  // {LF, RF, LH, RH}
-
-    switch (modeNumber) {
-      case 0:
-        stanceLegs = contact_flag_t{false, false, false, false};
-        break;  // 0:  0-leg-stance
-      case 1:
-        stanceLegs = contact_flag_t{false, false, false, true};
-        break;  // 1:  RH
-      case 2:
-        stanceLegs = contact_flag_t{false, false, true, false};
-        break;  // 2:  LH
-      case 3:
-        stanceLegs = contact_flag_t{false, false, true, true};
-        break;  // 3:  RH, LH
-      case 4:
-        stanceLegs = contact_flag_t{false, true, false, false};
-        break;  // 4:  RF
-      case 5:
-        stanceLegs = contact_flag_t{false, true, false, true};
-        break;  // 5:  RF, RH
-      case 6:
-        stanceLegs = contact_flag_t{false, true, true, false};
-        break;  // 6:  RF, LH
-      case 7:
-        stanceLegs = contact_flag_t{false, true, true, true};
-        break;  // 7:  RF, LH, RH
-      case 8:
-        stanceLegs = contact_flag_t{true, false, false, false};
-        break;  // 8:  LF,
-      case 9:
-        stanceLegs = contact_flag_t{true, false, false, true};
-        break;  // 9:  LF, RH
-      case 10:
-        stanceLegs = contact_flag_t{true, false, true, false};
-        break;  // 10: LF, LH
-      case 11:
-        stanceLegs = contact_flag_t{true, false, true, true};
-        break;  // 11: LF, LH, RH
-      case 12:
-        stanceLegs = contact_flag_t{true, true, false, false};
-        break;  // 12: LF, RF
-      case 13:
-        stanceLegs = contact_flag_t{true, true, false, true};
-        break;  // 13: LF, RF, RH
-      case 14:
-        stanceLegs = contact_flag_t{true, true, true, false};
-        break;  // 14: LF, RF, LH
-      case 15:
-        stanceLegs = contact_flag_t{true, true, true, true};
-        break;  // 15: 4-leg-stance
-    }
-
-    return stanceLegs;
+bool ContactPreplanned::getContactState() const {
+    return _contact_state;
 }
 
 /* *************************************************************************
  * *************************************************************************
  * *************************************************************************/
-bool ContactPreplanned::getContactState() const {
-    return _contact_state;
+bool ContactPreplanned::isArm(const std::string& vertex_frame) const {
+    std::map<std::string, std::string> arm_surface_contacts;
+    _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);
+    for (auto& armFrame : arm_surface_contacts) {
+        if (vertex_frame == armFrame.first)
+            return true;
+    }
+    return false;
 }
 
 
