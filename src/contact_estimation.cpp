@@ -82,16 +82,16 @@ int ContactPreplanned::vertices2ContactIndex(std::vector<std::string> vertices_n
     _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);                         // then arms
 
     int contact_index;
-    if (isArm(vertices_name.front())) {
+    if (isArm(vertices_name.front())) {     // for arm contact
         contact_index = 4;
         for (auto& frame : arm_surface_contacts) {
             if (vertices_name.front() == frame.first)
                 break;
             contact_index++;
         }
-    } else {
+    } else {                                // for feet contact
         contact_index = 0;
-        for (auto& frame : arm_surface_contacts) {
+        for (auto& frame : surface_contacts) {
             if (vertices_name.front() == frame.first)
                 break;
             contact_index++;
