@@ -229,7 +229,8 @@ BaseEstimationNode::BaseEstimationNode():
                 ft = _est->createVirtualFt(ft_name, {0, 1, 2});
 
             // create contact
-            _est->addSurfaceContact(vertices, ft);
+            if (!vertices.empty())
+                _est->addSurfaceContact(vertices, ft);
 
             jinfo("adding surface contact '{}' with vertices: [{}]",
                     ft_name,
