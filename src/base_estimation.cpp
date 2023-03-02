@@ -1,4 +1,5 @@
 ﻿#include "base_estimation/base_estimation.h"
+#include "common.h"
 
 using namespace ikbe;
 using namespace XBot;
@@ -441,11 +442,14 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
         for(auto t : fth.vertex_tasks)
         {
             t->reset();
+
             // set pose reference for contact frames to zero height, this is to deal with contact detection
-            Eigen::Affine3d taskReference;
-            task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
-            taskReference.translation().z() = 0.0;
-            task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+            if (!ikbe_common::isArm(fth.vertex_frames.front(), _nodehandle)) {          // for feet contacts
+                Eigen::Affine3d taskReference;
+                task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
+                taskReference.translation().z() = 0.0;
+                task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+            }
         }
     }
 }
@@ -466,10 +470,12 @@ void BaseEstimation::handle_preplanned_contact_switch(BaseEstimation::ContactHan
         {
             t->reset();
             // set pose reference for contact frames to zero height, this is to deal with contact detection
-            Eigen::Affine3d taskReference;
-            task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
-            taskReference.translation().z() = 0.0;
-            task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+            if (!ikbe_common::isArm(fth.vertex_frames.front(), _nodehandle)) {          // for feet contacts
+                Eigen::Affine3d taskReference;
+                task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
+                taskReference.translation().z() = 0.0;
+                task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+            }
         }
     }
 }

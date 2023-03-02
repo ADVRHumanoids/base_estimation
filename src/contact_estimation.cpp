@@ -66,7 +66,7 @@ ContactPreplanned::ContactPreplanned(ros::NodeHandle& nodeHandle, std::vector<st
     _mpc_observation_sub = _nodehandle.subscribe("/legged_robot_mpc_observation", 1,
                                                  &ContactPreplanned::mpcObservationCallback, this,
                                                  ros::TransportHints().tcpNoDelay());
-    if (isArm(vertices_name.front())) {
+    if (ikbe_common::isArm(vertices_name.front(), _nodehandle)) {
         _contact_state = false;
         _previous_contact_state = false;
     }
@@ -82,7 +82,7 @@ int ContactPreplanned::vertices2ContactIndex(std::vector<std::string> vertices_n
     _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);                         // then arms
 
     int contact_index;
-    if (isArm(vertices_name.front())) {     // for arm contact
+    if (ikbe_common::isArm(vertices_name.front(), _nodehandle)) {     // for arm contact
         contact_index = 4;
         for (auto& frame : arm_surface_contacts) {
             if (vertices_name.front() == frame.first)
@@ -149,19 +149,6 @@ ContactPreplanned::Event ContactPreplanned::update()
  * *************************************************************************/
 bool ContactPreplanned::getContactState() const {
     return _contact_state;
-}
-
-/* *************************************************************************
- * *************************************************************************
- * *************************************************************************/
-bool ContactPreplanned::isArm(const std::string& vertex_frame) const {
-    std::map<std::string, std::string> arm_surface_contacts;
-    _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);
-    for (auto& armFrame : arm_surface_contacts) {
-        if (vertex_frame == armFrame.first)
-            return true;
-    }
-    return false;
 }
 
 

@@ -2,6 +2,7 @@
 #define COMMON_H
 
 #include <cartesian_interface/CartesianInterfaceImpl.h>
+#include <ros/ros.h>
 
 namespace ikbe_common
 {
@@ -36,6 +37,18 @@ inline std::vector<std::string> footFrames(XBot::Cartesian::CartesianInterfaceIm
     return feet_tasks;
 }
 
+/* *************************************************************************
+ * *************************************************************************
+ * *************************************************************************/
+inline bool isArm(const std::string& vertex_frame, const ros::NodeHandle& nodehandle) {
+    std::map<std::string, std::string> arm_surface_contacts;
+    nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);
+    for (auto& armFrame : arm_surface_contacts) {
+        if (vertex_frame == armFrame.first)
+            return true;
+    }
+    return false;
+}
 }
 
 namespace ocs2 {

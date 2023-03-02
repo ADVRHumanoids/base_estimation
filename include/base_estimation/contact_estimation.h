@@ -84,8 +84,6 @@ private:
     // maps vertice name (for centauro the point contact frame) to contact index from 0 to 3
     int vertices2ContactIndex(std::vector<std::string> vertices_name);
 
-    bool isArm(const std::string& vertex_frame) const;
-
     ros::Subscriber _mpc_observation_sub;
     ros::NodeHandle _nodehandle;
 
