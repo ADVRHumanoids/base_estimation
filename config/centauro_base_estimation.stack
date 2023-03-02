@@ -4,8 +4,7 @@ solver_options:
     front_end: ihqp
 
 stack:
-     - [LF, RF, LR, RR, IMU]
-     - [LA, RA]
+     - [LF, RF, LR, RR, LA, RA, IMU]
 
 constraints: [Postural]
 
