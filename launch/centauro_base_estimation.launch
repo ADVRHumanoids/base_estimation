@@ -4,7 +4,7 @@
 
     <arg name="gdb"                default="false"/>
     <arg name="estimate_contacts"  default="false"/>
-    <arg name="publish_tftopic"    default="false"/>
+    <arg name="publish_tftopic"    default="true"/>
     <arg name="launch-prefix"      default=""/>
     <arg name="arm_contacts"       default="true"/>
 
