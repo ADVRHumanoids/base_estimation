@@ -10,7 +10,7 @@
 
     
     <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen" launch-prefix="$(arg launch-prefix)">
-        <param name="rate" value="500.0"/>
+        <param name="rate" value="200.0"/>
         <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_base_estimation.stack"/>
         <param name="contact_attach_thr" value="170.0"/>
         <param name="velocity_filter/omega" value="100.0"/>
