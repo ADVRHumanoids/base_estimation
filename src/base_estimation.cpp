@@ -1,6 +1,8 @@
 ﻿#include "base_estimation/base_estimation.h"
 #include "common.h"
 
+#include <eigen_conversions/eigen_msg.h>
+
 using namespace ikbe;
 using namespace XBot;
 
@@ -75,6 +77,10 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     // create a filter for the estimated twist
     _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d>>();
 
+    // subscriber for new imu
+    _imu_sub = _nodehandle.subscribe("/vectornav/IMU", 1,
+                                                 &BaseEstimation::imuCallback, this,
+                                                 ros::TransportHints().tcpNoDelay());
     // logger
     _logger = XBot::MatLogger2::MakeLogger("/tmp/base_estimation_log");
     _logger->set_buffer_mode(XBot::VariableBuffer::Mode::circular_buffer);
@@ -82,6 +88,29 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     _logger->create("ik_time", 1);
     _logger->create("vertex_opt_time", 1);
     _logger->create("update_time", 1);
+}
+
+/**************************************************************************************************
+ * ************************************************************************************************
+ * ************************************************************************************************/
+void BaseEstimation::imuCallback(const sensor_msgs::ImuConstPtr& msg) {
+    // imu orientation
+//    Eigen::Matrix3d nwu_R_imu;    // = msg->orientation; //TODO: msg to eigen
+    Eigen::Quaterniond e;    // = msg->orientation; //TODO: msg to eigen
+    tf::quaternionMsgToEigen(msg->orientation, e);
+    Eigen::Matrix3d nwu_R_imu = e.toRotationMatrix();
+
+    // imu ang velocity
+    Eigen::Vector3d imu_vel_local;  // = msg->angular_velocity;      // TODO: msg to eigen
+    tf::vectorMsgToEigen(msg->angular_velocity, imu_vel_local);
+
+    Eigen::Vector3d imu_vel_world = nwu_R_imu * imu_vel_local;
+
+    // set reference to imu task
+//    Eigen::Affine3d imu_ref;
+    _imu_ref.translation().setZero();
+    _imu_ref.linear() = nwu_R_imu;
+    _imu_vel_ref << 0., 0., 0., imu_vel_world;
 }
 
 /**************************************************************************************************
@@ -231,24 +260,28 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
     // imu
     if(_imu)
     {
-        // imu orientation
-        Eigen::Matrix3d nwu_R_imu;
-        _imu->getOrientation(nwu_R_imu);
+//        // imu orientation
+//        Eigen::Matrix3d nwu_R_imu;
+//        _imu->getOrientation(nwu_R_imu);
 
-        // imu ang velocity
-        Eigen::Vector3d imu_vel_local;
-        _imu->getAngularVelocity(imu_vel_local);
-        Eigen::Vector3d imu_vel_world = nwu_R_imu * imu_vel_local;
+//        // imu ang velocity
+//        Eigen::Vector3d imu_vel_local;
+//        _imu->getAngularVelocity(imu_vel_local);
+//        Eigen::Vector3d imu_vel_world = nwu_R_imu * imu_vel_local;
 
-        // set reference to imu task
-        Eigen::Affine3d imu_ref;
-        imu_ref.translation().setZero();
-        imu_ref.linear() = nwu_R_imu;
-        _imu_task->setPoseReference(imu_ref);
+//        // set reference to imu task
+//        Eigen::Affine3d imu_ref;
+//        imu_ref.translation().setZero();
+//        imu_ref.linear() = nwu_R_imu;
+//        _imu_task->setPoseReference(imu_ref);
 
-        Eigen::Vector6d imu_vel_ref;
-        imu_vel_ref << 0., 0., 0., imu_vel_world;
-        _imu_task->setVelocityReference(imu_vel_ref);
+//        Eigen::Vector6d imu_vel_ref;
+//        imu_vel_ref << 0., 0., 0., imu_vel_world;
+//        _imu_task->setVelocityReference(imu_vel_ref);
+
+        // update cartesian tasks
+        _imu_task->setPoseReference(_imu_ref);
+        _imu_task->setVelocityReference(_imu_vel_ref);
     }
 
     // ft and contacts

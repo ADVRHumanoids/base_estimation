@@ -10,6 +10,8 @@
 
 #include <XBotInterface/Utils.h>
 
+#include <sensor_msgs/Imu.h>
+
 namespace ikbe
 {
 
@@ -191,6 +193,13 @@ public:
 
 private:
     ros::NodeHandle _nodehandle;    // To subscribe to contacts of the planner
+
+    // new imu related variables
+    ros::Subscriber _imu_sub;       // subscribe to new imu topic
+    void imuCallback(const sensor_msgs::ImuConstPtr& msg);
+    Eigen::Affine3d _imu_ref;
+    Eigen::Vector6d _imu_vel_ref;
+
     Options _opt;
 
     Eigen::VectorXd _q, _qdot;
