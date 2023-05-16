@@ -3,6 +3,7 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <tf/transform_listener.h>
 #include <tf_conversions/tf_eigen.h>
+#include <tf/transform_broadcaster.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
@@ -47,9 +48,10 @@ private:
     ikbe::BaseEstimation::UniquePtr _est;
 
     std::unique_ptr<XBot::Cartesian::Utils::RobotStatePublisher> _rspub;
+    tf::TransformBroadcaster _br;
 
     std::string _odom_frame;
-    std::string _tf_prefix;
+    std::string _tf_prefix, _tf_prefix_slash;
     double _pose_lin_cov, _pose_rot_cov;
     double _vel_lin_cov, _vel_rot_cov;
 
@@ -100,6 +102,8 @@ BaseEstimationNode::BaseEstimationNode():
     {
         _tf_prefix = "odometry";
     }
+
+    _tf_prefix_slash = _tf_prefix.empty() ? "" : _tf_prefix_slash;
 
     // load problem
     std::string ik_problem_str;
@@ -380,8 +384,8 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
-    tf.child_frame_id = _tf_prefix + "/" + base_link;
-    tf.header.frame_id = _tf_prefix + "/world";
+    tf.child_frame_id = _tf_prefix_slash + base_link;
+    tf.header.frame_id = _tf_prefix_slash + "world";
     tf.header.stamp = now;
     _base_pose_pub.publish(tf);
 
@@ -392,7 +396,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     geometry_msgs::TwistStamped twist_msg;
     twist_msg.header.stamp = now;
-    twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+    twist_msg.header.frame_id = _tf_prefix_slash + base_link;
 
     tf::twistEigenToMsg(v_local, twist_msg.twist);
     _base_twist_pub.publish(twist_msg);
@@ -404,7 +408,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     geometry_msgs::TwistStamped raw_twist_msg;
     raw_twist_msg.header.stamp = now;
-    raw_twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+    raw_twist_msg.header.frame_id = _tf_prefix_slash + base_link;
 
     tf::twistEigenToMsg(raw_v_local, raw_twist_msg.twist);
     _base_raw_twist_pub.publish(raw_twist_msg);
@@ -426,6 +430,11 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     vel_cov.diagonal().tail<3>().setConstant(_vel_rot_cov);
 
     _base_odom_pub.publish(odom_msg);
+
+    // publish tf
+    tf::Transform t;
+    tf::transformEigenToTF(T, t);
+    _br.sendTransform(tf::StampedTransform(t, now, "world", base_link));
 }
 
 int main(int argc, char **argv)
