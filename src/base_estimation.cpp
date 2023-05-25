@@ -78,7 +78,7 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d>>();
 
     // subscriber for new imu
-    _imu_sub = _nodehandle.subscribe("/vectornav/IMU", 1,
+    _imu_sub = _nodehandle.subscribe("/xbotcore/imu/imu_link", 1,
                                                  &BaseEstimation::imuCallback, this,
                                                  ros::TransportHints().tcpNoDelay());
     // logger
