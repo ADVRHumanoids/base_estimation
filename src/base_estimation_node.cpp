@@ -149,7 +149,7 @@ BaseEstimationNode::BaseEstimationNode():
         }
         else {                                                  // otherwise initialize with a default value
             Eigen::Affine3d fb_T_l;
-            fb_T_l.translation() = Eigen::Vector3d(-0.064, -0.004, 0.719);
+            fb_T_l.translation() = Eigen::Vector3d(-0.064, -0.004, 0.818);
             fb_T_l.linear() << 0.999948,    0.0101555,  0.00109614,
                               -0.0101556,  0.999948,   8.00347e-06,
                               -0.001096,   -1.9135e-05,    0.999999;
