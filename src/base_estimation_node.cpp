@@ -141,20 +141,25 @@ BaseEstimationNode::BaseEstimationNode():
         boost::shared_ptr<geometry_msgs::PoseStamped const> msgBasePosePtr;             // ros messages
         msgBasePosePtr = ros::topic::waitForMessage<geometry_msgs::PoseStamped>(basePoseTopic, _nhpr, ros::Duration(3));
 
-        if (msgBasePosePtr != NULL) {                           // check if xbotcore pose msg is available (simulation)
+        if (msgBasePosePtr != NULL) {
+            // check if xbotcore pose msg is available (simulation) then use this as ground truth
             Eigen::Affine3d fb_T_l;
             tf::poseMsgToEigen(msgBasePosePtr->pose, fb_T_l);
             _model->setFloatingBasePose(fb_T_l);
             jinfo("Initialized base pose from xbotcore topic");
         }
         else {                                                  // otherwise initialize with a default value
-            Eigen::Affine3d fb_T_l;
-            fb_T_l.translation() = Eigen::Vector3d(-0.064, -0.004, 0.719);
-            fb_T_l.linear() << 0.999948,    0.0101555,  0.00109614,
-                              -0.0101556,  0.999948,   8.00347e-06,
-                              -0.001096,   -1.9135e-05,    0.999999;
+            // get fb pose and modify z translation based on tf from contact frame
+            std::string base_link;
+            Eigen::Affine3d fb_T_l, T_c1fb;
+            std::map<std::string, std::string> surface_contacts;
+            _nhpr.getParam("surface_contacts", surface_contacts);   // contact frame from param server
+            _model->getFloatingBaseLink(base_link);
+            _model->getFloatingBasePose(fb_T_l);
+            _model->getPose(base_link, surface_contacts.begin()->second, T_c1fb);
+            fb_T_l.translation() = Eigen::Vector3d(0, 0, T_c1fb.translation()(2, 0));
             _model->setFloatingBasePose(fb_T_l);
-            jinfo("Did not get message from xbotcore. Initialized base pose from default values");
+            jinfo("Did not get floating base pose from xbotcore ground truth. Initialized base pose from default values");
         }
     } else if(world_frame_link != "") {
         // previous implementation
