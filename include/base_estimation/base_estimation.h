@@ -88,6 +88,11 @@ public:
     Options getOptions() const;
 
     /**
+     * @brief returns the vector of reference frame names for estimated wrenches
+     */
+    std::vector<std::string> getEstimatedWrenchReferenceFrames() const { return _estimatedWrenchRefFrames;}
+
+    /**
      * @brief ci returns the internal cartesio object
      */
     XBot::Cartesian::CartesianInterfaceImpl::Ptr ci() const;
@@ -191,6 +196,7 @@ public:
 
 private:
     ros::NodeHandle _nodehandle;    // To subscribe to contacts of the planner
+    std::vector<std::string> _estimatedWrenchRefFrames;
     Options _opt;
 
     Eigen::VectorXd _q, _qdot;

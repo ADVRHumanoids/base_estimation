@@ -27,6 +27,7 @@
 
         <param name="estimate_contacts" value="$(arg estimate_contacts)"/>
         <param name="publish_tftopic" value="$(arg publish_tftopic)"/>
+        <param name="estimated_wrench_ref_frame"  value="pelvis"/>        <!-- leave empty for default -->
 
         <remap from="/robot_description" to="/xbotcore/robot_description"/>
         <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>

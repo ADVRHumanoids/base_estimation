@@ -75,6 +75,33 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model, YAML::Node conta
     // create a filter for the estimated twist
     _vel_filter = std::make_shared<XBot::Utils::SecondOrderFilter<Eigen::Vector6d>>();
 
+    // get ros params related with wrench estimation
+    std::map<std::string, std::string> surface_contacts, arm_surface_contacts, rolling_contacts;
+    std::string wrenchRefFrameName;
+    _nodehandle.getParam("surface_contacts", surface_contacts);                              // first get feet
+    _nodehandle.getParam("arm_surface_contacts", arm_surface_contacts);                         // then arms
+    _nodehandle.getParam("rolling_contacts", rolling_contacts);                         // then arms
+    _nodehandle.getParam("estimated_wrench_ref_frame", wrenchRefFrameName);
+    int contactsNumber = surface_contacts.size() + arm_surface_contacts.size() + rolling_contacts.size();
+    if (wrenchRefFrameName != "")   // non empty string means same ref frame for all ft sensors
+        _estimatedWrenchRefFrames = std::vector<std::string>(contactsNumber, wrenchRefFrameName);
+    else {                          // empty string means default ref frame for each ft sensor
+        for (auto& contact: surface_contacts) {
+            _estimatedWrenchRefFrames.emplace_back(contact.first);
+        }
+        for (auto& contact: arm_surface_contacts) {
+            _estimatedWrenchRefFrames.emplace_back(contact.first);
+        }
+        for (auto& contact: rolling_contacts) {
+            _estimatedWrenchRefFrames.emplace_back(contact.first);
+        }
+    }
+    std::cout << "Wrench estimation reference frames: ";
+    for (auto& frameName: _estimatedWrenchRefFrames) {
+        std::cout << frameName << ", ";
+    }
+    std::cout << std::endl;
+
     // logger
     _logger = XBot::MatLogger2::MakeLogger("/tmp/base_estimation_log");
     _logger->set_buffer_mode(XBot::VariableBuffer::Mode::circular_buffer);
@@ -277,20 +304,20 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         _weights /= _alpha;
 
         // set weights to tasks
-        for(size_t i = 0; i < fthandler.vertex_tasks.size(); ++i)       // loop over vertices (although for point contacts there is only one vertex)
+        for(size_t j = 0; j < fthandler.vertex_tasks.size(); ++j)       // loop over vertices (although for point contacts there is only one vertex)
         {
             // preplanned contacts case: set zero weight for swing legs reduces drift
             if (!_opt.estimate_contacts)
             {
                 if(!fthandler.contact_planned->getContactState())
-                    _weights[i] = 0;
+                    _weights[j] = 0;
             } else {        // contact estimation
                 if(!fthandler.contact_est->getContactState())
-                    _weights[i] = 0;
+                    _weights[j] = 0;
             }
 
-            int size = fthandler.vertex_tasks[i]->getSize();
-            fthandler.vertex_tasks[i]->setWeight(_weights[i]*Eigen::MatrixXd::Identity(size,size));
+            int size = fthandler.vertex_tasks[j]->getSize();
+            fthandler.vertex_tasks[j]->setWeight(_weights[j]*Eigen::MatrixXd::Identity(size,size));
 
 //            if(auto cart = std::dynamic_pointer_cast<Cartesian::CartesianTask>(fthandler.vertex_tasks[i]))
 //            {
@@ -302,9 +329,8 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         }
 
         // save contact state from estimation or preplanned
-        if (true) {           // TODO: only temporary hack for pawup
-            handle_contact_switch(fthandler);       // save haptic state
-        }
+        handle_contact_switch(fthandler);       // save haptic state
+
         contact_info[i].contact_haptic_state = fthandler.contact_est->getContactState();
         if (_opt.estimate_contacts) {       // if contact status is estimated use previous info
             contact_info[i].contact_state = contact_info[i].contact_haptic_state;
@@ -316,8 +342,14 @@ bool BaseEstimation::update(Eigen::Affine3d& pose, Eigen::Vector6d& vel, Eigen::
         // save weights
         Eigen::VectorXd::Map(contact_info[i].vertex_weights.data(), _weights.size()) = _weights;
 
+        // transform wrench (if wrench ref frames are default poseSensorWrtDesiredFrame is identity)
+        Eigen::Affine3d poseSensorWrtDesiredFrame;
+        Eigen::Matrix<double, 6, 1> transformedWrench;
+        _model->getPose(contact_info[i].name, _estimatedWrenchRefFrames[i], poseSensorWrtDesiredFrame);
+        ikbe_common::transformWrench(wrench, poseSensorWrtDesiredFrame, transformedWrench);
+
         // save wrench
-        contact_info[i].wrench = wrench;
+        contact_info[i].wrench = transformedWrench;
 
         // increment contact_info index
         i++;

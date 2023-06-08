@@ -49,6 +49,55 @@ inline bool isArm(const std::string& vertex_frame, const ros::NodeHandle& nodeha
     }
     return false;
 }
+
+/**
+ * Compute the rotation matrix corresponding to euler angles zyx
+ *
+ * @param [in] eulerAnglesZyx
+ * @return The corresponding rotation matrix
+ */
+template <typename SCALAR_T>
+Eigen::Matrix<SCALAR_T, 3, 3> getRotationMatrixFromZyxEulerAngles(const Eigen::Matrix<SCALAR_T, 3, 1>& eulerAngles) {
+  const SCALAR_T z = eulerAngles(0);
+  const SCALAR_T y = eulerAngles(1);
+  const SCALAR_T x = eulerAngles(2);
+
+  const SCALAR_T c1 = cos(z);
+  const SCALAR_T c2 = cos(y);
+  const SCALAR_T c3 = cos(x);
+  const SCALAR_T s1 = sin(z);
+  const SCALAR_T s2 = sin(y);
+  const SCALAR_T s3 = sin(x);
+
+  const SCALAR_T s2s3 = s2 * s3;
+  const SCALAR_T s2c3 = s2 * c3;
+
+  // clang-format off
+  Eigen::Matrix<SCALAR_T, 3, 3> rotationMatrix;
+  rotationMatrix << c1 * c2,      c1 * s2s3 - s1 * c3,       c1 * s2c3 + s1 * s3,
+                    s1 * c2,      s1 * s2s3 + c1 * c3,       s1 * s2c3 - c1 * s3,
+                        -s2,                  c2 * s3,                   c2 * c3;
+  // clang-format on
+  return rotationMatrix;
+}
+
+template <typename SCALAR_T>
+inline void transformWrench(const Eigen::Matrix<SCALAR_T, 6, 1>& oldWrench, const Eigen::Affine3d& newCFtoOldCFtransformation, Eigen::Matrix<SCALAR_T, 6, 1>& newWrench) {
+    if(oldWrench.rows() != 6) {
+      throw std::runtime_error("[transformWrench] old wrench is not 6d");
+    }
+    if (newWrench.rows() != 6)
+        newWrench.resize(6);
+
+    Eigen::Matrix<SCALAR_T, 3, 3> rotationMatrix = newCFtoOldCFtransformation.linear();
+    Eigen::Matrix<SCALAR_T, 3, 1> translation = newCFtoOldCFtransformation.translation();
+
+    Eigen::Matrix<SCALAR_T, 3, 1> reorientedF = rotationMatrix * oldWrench.segment(0,3);
+    Eigen::Matrix<SCALAR_T, 3, 1> reorientedM = rotationMatrix * oldWrench.segment(3,3);
+
+    newWrench.segment(0,3) = reorientedF;
+    newWrench.segment(3,3) = reorientedM + translation.cross(reorientedF);
+}
 }
 
 namespace ocs2 {
