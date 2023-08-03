@@ -103,7 +103,7 @@ BaseEstimationNode::BaseEstimationNode():
         _tf_prefix = "odometry";
     }
 
-    _tf_prefix_slash = _tf_prefix.empty() ? "" : _tf_prefix_slash;
+    _tf_prefix_slash = _tf_prefix.empty() ? "" : _tf_prefix + "/";
 
     // load problem
     std::string ik_problem_str;
@@ -434,7 +434,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     // publish tf
     tf::Transform t;
     tf::transformEigenToTF(T, t);
-    _br.sendTransform(tf::StampedTransform(t, now, "world", base_link));
+    _br.sendTransform(tf::StampedTransform(t, now, _tf_prefix_slash+"world", base_link));
 }
 
 int main(int argc, char **argv)

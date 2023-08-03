@@ -20,6 +20,8 @@
     <remap from="/robot_description" to="/xbotcore/robot_description"/>
     <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
 
+    <param name="tf_prefix" value="base_odom"/>
+    <param name="publish_tf" value="true"/>
 </node>
 
 </launch>
