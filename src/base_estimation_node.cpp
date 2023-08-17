@@ -14,7 +14,7 @@
 #include <base_estimation/base_estimation.h>
 #include <base_estimation/ContactsStatus.h>
 #include <base_estimation/ContactsWrench.h>
-#include <base_estimation/contact_viz.h>
+//#include <base_estimation/contact_viz.h>
 #include <std_msgs/Bool.h>
 
 #include "common.h"
