@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(base_estimation)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 option(XBOT2_ENABLE_XENO OFF "Compile against xenomai")
 
