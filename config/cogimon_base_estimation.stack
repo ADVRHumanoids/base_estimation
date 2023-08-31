@@ -4,7 +4,8 @@ solver_options:
     front_end: ihqp
 
 stack:
-     - [LFUR, LFUL, LFLR, LFLL, RFUR, RFUL, RFLR, RFLL, IMU]
+     # - [LFUR, LFUL, LFLR, LFLL, RFUR, RFUL, RFLR, RFLL, IMU]
+     - [LF, RF, IMU]
 
 constraints: [Postural]
 
@@ -30,6 +31,12 @@ IMU:
     weight: 10
     active: false
 
+LF:
+    type: Cartesian
+    distal_link: l_sole
+    lambda: *vertex_lam
+    indices: [0,1,2]
+
 LFUR:
     type: Cartesian
     distal_link: l_foot_upper_right_link
@@ -51,6 +58,12 @@ LFLR:
 LFLL:
     type: Cartesian
     distal_link: l_foot_lower_left_link
+    lambda: *vertex_lam
+    indices: [0,1,2]
+
+RF:
+    type: Cartesian
+    distal_link: r_sole
     lambda: *vertex_lam
     indices: [0,1,2]
 

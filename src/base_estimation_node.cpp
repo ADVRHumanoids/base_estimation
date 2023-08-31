@@ -54,6 +54,7 @@ private:
     double _vel_lin_cov, _vel_rot_cov;
 
     ros::Publisher _base_tf_pub;
+    ros::Publisher _base_transform_pub;
     ros::Publisher _base_pose_pub;
     ros::Publisher _base_twist_pub;
     ros::Publisher _base_odom_pub;
@@ -173,7 +174,6 @@ BaseEstimationNode::BaseEstimationNode():
     std::string world_frame_link = _nhpr.param("world_frame_link", ""s);
     if(world_frame_link != "")
     {
-
         Eigen::Affine3d fb_T_l;
         std::string floating_base_link;
         _model->getFloatingBaseLink(floating_base_link);
@@ -186,6 +186,22 @@ BaseEstimationNode::BaseEstimationNode():
 
         _model->setFloatingBasePose(fb_T_l.inverse());
         _model->update();
+    }
+    else
+    {
+        // fix the world in the middle of the two feet (checking if the robot is actually coman+)
+        Eigen::Affine3d fb_T_lf, fb_T_rf;
+        std::string floating_base_link;
+        _model->getFloatingBaseLink(floating_base_link);
+
+        if (_model->getPose("l_sole", floating_base_link, fb_T_lf))
+        {
+            _model->getPose("r_sole", floating_base_link, fb_T_rf);
+        }
+
+        fb_T_lf.translation() = (fb_T_lf.translation() + fb_T_rf.translation()) / 2;
+        _model->setFloatingBasePose(fb_T_lf);
+       _model->update();
     }
 
     // get contact properties
@@ -281,7 +297,8 @@ BaseEstimationNode::BaseEstimationNode():
 
     // publishers
     _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
-    _base_pose_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/pose", 1);
+    _base_transform_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/transform", 1);
+    _base_pose_pub = _nhpr.advertise<geometry_msgs::PoseStamped>("base_link/pose", 1);
     _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
@@ -383,7 +400,13 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     tf.child_frame_id = _tf_prefix + "/" + base_link;
     tf.header.frame_id = _tf_prefix + "/world";
     tf.header.stamp = now;
-    _base_pose_pub.publish(tf);
+    _base_transform_pub.publish(tf);
+
+    geometry_msgs::PoseStamped pose;
+    pose.header.frame_id = _tf_prefix + "world";
+    pose.header.stamp = now;
+    tf::poseEigenToMsg(T, pose.pose);
+    _base_pose_pub.publish(pose);
 
     // publish local twist
     Eigen::Vector6d v_local;
