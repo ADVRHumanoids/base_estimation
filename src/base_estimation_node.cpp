@@ -200,7 +200,7 @@ BaseEstimationNode::BaseEstimationNode():
         }
 
         fb_T_lf.translation() = (fb_T_lf.translation() + fb_T_rf.translation()) / 2;
-        _model->setFloatingBasePose(fb_T_lf);
+        _model->setFloatingBasePose(fb_T_lf.inverse());
        _model->update();
     }
 
@@ -403,7 +403,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     _base_transform_pub.publish(tf);
 
     geometry_msgs::PoseStamped pose;
-    pose.header.frame_id = _tf_prefix + "world";
+    pose.header.frame_id = _tf_prefix + "/world";
     pose.header.stamp = now;
     tf::poseEigenToMsg(T, pose.pose);
     _base_pose_pub.publish(pose);
