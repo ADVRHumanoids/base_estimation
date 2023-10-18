@@ -426,6 +426,15 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     vel_cov.diagonal().tail<3>().setConstant(_vel_rot_cov);
 
     _base_odom_pub.publish(odom_msg);
+ 
+    // publish odom frame
+    tf.child_frame_id = base_link;
+    tf.header.frame_id = "odom";
+    _base_pose_pub.publish(tf);
+
+    tf2_msgs::TFMessage tfmsg;
+    tfmsg.transforms.push_back(tf);
+    _base_tf_pub.publish(tfmsg);
 }
 
 int main(int argc, char **argv)
