@@ -1,5 +1,5 @@
 solver_options:
-    regularization: 1e-12
+    regularization: 1e-6
     back_end: qpoases
     front_end: ihqp
 
@@ -10,7 +10,7 @@ stack:
 constraints: [Postural]
 
 params:
- - &vertex_lam 0.1
+ - &vertex_lam 0.01
 
 Postural:
     type: Postural
@@ -28,14 +28,14 @@ IMU:
     distal_link: imu_link
     lambda: 0.1
     indices: [3,4,5]
-    weight: 10
+    weight: 10.
     active: false
 
 LF:
     type: Cartesian
     distal_link: l_sole
     lambda: *vertex_lam
-    indices: [0,1,2]
+    #indices: [0,1,2]
 
 LFUR:
     type: Cartesian
@@ -65,7 +65,7 @@ RF:
     type: Cartesian
     distal_link: r_sole
     lambda: *vertex_lam
-    indices: [0,1,2]
+    #indices: [0,1,2]
 
 RFUR:
     type: Cartesian

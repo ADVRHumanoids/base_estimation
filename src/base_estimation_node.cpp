@@ -277,8 +277,16 @@ BaseEstimationNode::BaseEstimationNode():
         // ft for contact detection
         XBot::ForceTorqueSensor::ConstPtr ft;
 
-        // add ft (either real or virtual)
-        if(ft_map.count(ft_name) > 0)
+        if(z_force_override.count(ft_name))
+        {
+            auto dummy_ft = ikbe::BaseEstimation::CreateDummyFtSensor(ft_name);
+            dummy_ft->setForce(z_force_override.at(ft_name) * Eigen::Vector3d::UnitZ(),
+                               0.0);  // useless timestamp
+            jinfo("created dummy ft {} for surface {}, fz = {}",
+                  ft_name, vertex_prefix, z_force_override.at(ft_name));
+            ft = dummy_ft;
+        }
+        else if(ft_map.count(ft_name) > 0)
         {
             ft = ft_map.at(ft_name);
         }
