@@ -107,6 +107,9 @@ if(${COMPILE_CARTESIO_PLUGIN})
     add_subdirectory(cartesio)
 endif()
 
+add_subdirectory(bindings/python/)
+
+
 # install files
 install(
     DIRECTORY config
