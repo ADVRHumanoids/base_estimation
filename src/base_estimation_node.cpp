@@ -201,7 +201,7 @@ BaseEstimationNode::BaseEstimationNode():
 
         fb_T_lf.translation() = (fb_T_lf.translation() + fb_T_rf.translation()) / 2;
         _model->setFloatingBasePose(fb_T_lf.inverse());
-       _model->update();
+        _model->update();
     }
 
     // get contact properties
@@ -277,16 +277,8 @@ BaseEstimationNode::BaseEstimationNode():
         // ft for contact detection
         XBot::ForceTorqueSensor::ConstPtr ft;
 
-        if(z_force_override.count(ft_name))
-        {
-            auto dummy_ft = ikbe::BaseEstimation::CreateDummyFtSensor(ft_name);
-            dummy_ft->setForce(z_force_override.at(ft_name) * Eigen::Vector3d::UnitZ(),
-                               0.0);  // useless timestamp
-            jinfo("created dummy ft {} for surface {}, fz = {}",
-                  ft_name, vertex_prefix, z_force_override.at(ft_name));
-            ft = dummy_ft;
-        }
-        else if(ft_map.count(ft_name) > 0)
+        // add ft (either real or virtual)
+        if(ft_map.count(ft_name) > 0)
         {
             ft = ft_map.at(ft_name);
         }
@@ -411,7 +403,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     _base_transform_pub.publish(tf);
 
     geometry_msgs::PoseStamped pose;
-    pose.header.frame_id = _tf_prefix + "/world";
+    pose.header.frame_id = _tf_prefix + "world";
     pose.header.stamp = now;
     tf::poseEigenToMsg(T, pose.pose);
     _base_pose_pub.publish(pose);

@@ -15,9 +15,6 @@
     <param name="contact_release_thr" value="50.0"/>
     <param name="use_imu" value="true"/>
     <param name="publish_tf" value="true"/>
-    <param name="z_force_override/l_sole" value="1000"/>
-    <param name="z_force_override/r_sole" value="1000"/>
-<!--    <param name="world_frame_link" value="l_sole"/>-->
 
     <remap from="/robot_description" to="/xbotcore/robot_description"/>
     <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
