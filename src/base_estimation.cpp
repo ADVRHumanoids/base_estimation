@@ -53,9 +53,11 @@ BaseEstimation::Options BaseEstimation::getOptions() const
 }
 
 ForceTorqueSensor::Ptr BaseEstimation::CreateDummyFtSensor(std::string name)
-{
+{    
     auto ret = std::make_shared<ForceTorqueSensor>();
-    ret->setWrench(Eigen::Vector6d::Zero(), 0.0);
+    Eigen::Vector6d vec;
+    vec << 1000., 1000., 1000., 0., 0., 0.;
+    ret->setWrench(vec, 0.0);
     return ret;
 }
 

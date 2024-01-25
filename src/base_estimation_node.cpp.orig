@@ -18,7 +18,7 @@
 #include <base_estimation/base_estimation.h>
 #include <base_estimation/ContactsStatus.h>
 #include <base_estimation/contact_viz.h>
-#include <base_estimation/ContactWrenches.h>
+
 #include "common.h"
 
 using namespace std::string_literals;
@@ -39,16 +39,12 @@ public:
 
 private:
 
-    void wrench_callback(base_estimation::ContactWrenchesConstPtr msg);
-
     ros::NodeHandle _nh;
     ros::NodeHandle _nhpr;
 
     XBot::RobotInterface::Ptr _robot;
     XBot::ModelInterface::Ptr _model;
     ikbe::BaseEstimation::UniquePtr _est;
-
-    std::map<std::string, XBot::ForceTorqueSensor::Ptr> _ft_map;
 
     std::unique_ptr<XBot::Cartesian::Utils::RobotStatePublisher> _rspub;
 
@@ -64,9 +60,6 @@ private:
     ros::Publisher _base_odom_pub;
     ros::Publisher _base_raw_twist_pub;
     ros::Publisher _contacts_state_pub;
-    ros::Publisher _force_pub;
-
-    ros::Subscriber _forces_sub;
 
     ros::Time _last_now;
 
@@ -194,6 +187,26 @@ BaseEstimationNode::BaseEstimationNode():
         _model->setFloatingBasePose(fb_T_l.inverse());
         _model->update();
     }
+    else
+    {
+        // fix the world in the middle of the two feet (checking if the robot is actually coman+)
+        Eigen::Affine3d fb_T_lf, fb_T_rf;
+        std::string floating_base_link;
+        _model->getFloatingBaseLink(floating_base_link);
+
+        if (_model->getPose("l_sole", floating_base_link, fb_T_lf))
+        {
+            _model->getPose("r_sole", floating_base_link, fb_T_rf);
+        }
+
+        fb_T_lf.translation() = (fb_T_lf.translation() + fb_T_rf.translation()) / 2;
+        _model->setFloatingBasePose(fb_T_lf.inverse());
+<<<<<<< Updated upstream
+       _model->update();
+=======
+        _model->update();
+>>>>>>> Stashed changes
+    }
 
     // get contact properties
 
@@ -268,8 +281,16 @@ BaseEstimationNode::BaseEstimationNode():
         // ft for contact detection
         XBot::ForceTorqueSensor::ConstPtr ft;
 
-        // add ft (either real or virtual)
-        if(ft_map.count(ft_name) > 0)
+        if(z_force_override.count(ft_name))
+        {
+            auto dummy_ft = ikbe::BaseEstimation::CreateDummyFtSensor(ft_name);
+            dummy_ft->setForce(z_force_override.at(ft_name) * Eigen::Vector3d::UnitZ(),
+                               0.0);  // useless timestamp
+            jinfo("created dummy ft {} for surface {}, fz = {}",
+                  ft_name, vertex_prefix, z_force_override.at(ft_name));
+            ft = dummy_ft;
+        }
+        else if(ft_map.count(ft_name) > 0)
         {
             ft = ft_map.at(ft_name);
         }
@@ -286,20 +307,6 @@ BaseEstimationNode::BaseEstimationNode():
               fmt::join(vertices, ", "));
     }
 
-    std::vector<std::string> point_contacts;
-    _nhpr.getParam("point_contacts", point_contacts);
-
-    for (auto pc : point_contacts)
-    {
-        auto ft = _est->CreateDummyFtSensor(pc);
-        _ft_map[pc] = ft;
-
-        _est->addSurfaceContact({pc}, ft);
-
-        jinfo("adding point contact '{}'",
-              pc);
-    }
-
     // publishers
     _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
     _base_transform_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/transform", 1);
@@ -308,9 +315,6 @@ BaseEstimationNode::BaseEstimationNode():
     _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
     _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
     _base_odom_pub = _nhpr.advertise<nav_msgs::Odometry>("base_link/odom", 1);
-    _force_pub = _nhpr.advertise<base_estimation::ContactWrenches>("contacts/get_wrench", 1);
-
-    _forces_sub = _nhpr.subscribe("contacts/set_wrench", 1, &BaseEstimationNode::wrench_callback, this);
 
     // odom frame name
     _odom_frame = _nhpr.param("odom_frame", "world"s);
@@ -411,7 +415,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     _base_transform_pub.publish(tf);
 
     geometry_msgs::PoseStamped pose;
-    pose.header.frame_id = _tf_prefix + "world";
+    pose.header.frame_id = _tf_prefix + "/world";
     pose.header.stamp = now;
     tf::poseEigenToMsg(T, pose.pose);
     _base_pose_pub.publish(pose);
@@ -457,33 +461,6 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     vel_cov.diagonal().tail<3>().setConstant(_vel_rot_cov);
 
     _base_odom_pub.publish(odom_msg);
-
-    base_estimation::ContactWrenches wrench_msg;
-    wrench_msg.header.stamp = now;
-    for (auto cinfo : _est->contact_info)
-    {
-        wrench_msg.names.push_back(cinfo.name);
-        geometry_msgs::Wrench wrench;
-        tf::vectorEigenToMsg(cinfo.wrench.head(3), wrench.force);
-        tf::vectorEigenToMsg(cinfo.wrench.tail(3), wrench.torque);
-        wrench_msg.wrenches.push_back(wrench);
-    }
-    _force_pub.publish(wrench_msg);
-}
-
-void BaseEstimationNode::wrench_callback(base_estimation::ContactWrenchesConstPtr msg)
-{
-    for (int i = 0; i < msg->names.size(); i++)
-    {
-        Eigen::Vector3d force, torque;
-        tf::vectorMsgToEigen(msg->wrenches[i].force, force);
-        tf::vectorMsgToEigen(msg->wrenches[i].torque, torque);
-
-        Eigen::Vector6d wrench;
-        wrench << force, torque;
-
-        _ft_map[msg->names[i]]->setWrench(wrench, msg->header.stamp.toSec());
-    }
 }
 
 int main(int argc, char **argv)
@@ -502,7 +479,7 @@ int main(int argc, char **argv)
         node.run();
 
         rate.sleep();
-        ros::spinOnce();
+
     }
 
 }

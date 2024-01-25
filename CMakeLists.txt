@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
     roscpp
     visualization_msgs
     std_msgs
+    geometry_msgs
     gazebo_msgs
     tf_conversions
     eigen_conversions
@@ -26,11 +27,13 @@ add_message_files(
     FILES
     ContactStatus.msg
     ContactsStatus.msg
+    ContactWrenches.msg
     )
 
 generate_messages(
     DEPENDENCIES
     std_msgs
+    geometry_msgs
     )
 
 catkin_package()

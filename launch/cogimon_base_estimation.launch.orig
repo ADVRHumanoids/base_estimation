@@ -2,18 +2,25 @@
 
 <node pkg="base_estimation"
         type="base_estimation_node"
-        name="centauro_base_estimation"
+        name="cogimon_base_estimation"
         output="screen">
 
-    <param name="ik_problem" textfile="$(find kyon_controller)/config/centauro_base_estimation.yaml"/>
+    <param name="ik_problem" textfile="$(find base_estimation)/config/cogimon_base_estimation.stack"/>
     <param name="rate" value="200.0"/>
+    <param name="surface_contacts/l_sole" value="l_sole"/>
+    <param name="surface_contacts/r_sole" value="r_sole"/>
     <param name="contact_attach_thr" value="100.0"/>
     <param name="contact_release_thr" value="50.0"/>
     <param name="velocity_filter/omega" value="100.0"/>
     <param name="contact_release_thr" value="50.0"/>
-    <param name="point_contacts" type="yaml" value="[contact_1, contact_2, contact_3, contact_4]"/>
     <param name="use_imu" value="true"/>
     <param name="publish_tf" value="true"/>
+<<<<<<< Updated upstream
+    <param name="z_force_override/l_sole" value="1000"/>
+    <param name="z_force_override/r_sole" value="1000"/>
+<!--    <param name="world_frame_link" value="l_sole"/>-->
+=======
+>>>>>>> Stashed changes
 
     <remap from="/robot_description" to="/xbotcore/robot_description"/>
     <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
