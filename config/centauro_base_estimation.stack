@@ -34,26 +34,26 @@ LF:
     type: WheelRolling
     wheel_name: wheel_1
     lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
+    wheel_radius: 0.124
     include_z_axis: true
 
 RF:
     type: WheelRolling
     wheel_name: wheel_2
     lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
+    wheel_radius: 0.124
     include_z_axis: true
 
 LR:
     type: WheelRolling
     wheel_name: wheel_3
     lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
+    wheel_radius: 0.124
     include_z_axis: true
 
 RR:
     type: WheelRolling
     wheel_name: wheel_4
     lib_name: libcentauro_cartesio_addon.so
-    wheel_radius: 0.078
+    wheel_radius: 0.124
     include_z_axis: true
