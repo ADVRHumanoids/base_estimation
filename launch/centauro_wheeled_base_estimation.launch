@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+
+<launch>
+
+    <arg name="gdb"                default="false"/>
+    <arg name="estimate_contacts"  default="false"/>
+    <arg name="publish_tftopic"    default="true"/>
+    <arg name="launch-prefix"      default=""/>
+    <arg name="arm_contacts"       default="true"/>
+
+    <arg name="launch-prefix" value="gnome-terminal -- gdb -e run --args" if="$(arg gdb)"/>
+    <node pkg="base_estimation" type="base_estimation_node" name="centauro_base_estimation" output="screen" launch-prefix="$(arg launch-prefix)">
+        <param name="rate" value="200.0"/>
+        <param name="ik_problem" textfile="$(find base_estimation)/config/centauro_wheeled_base_estimation.stack"/>
+        <param name="contact_attach_thr" value="170.0"/>
+        <param name="velocity_filter/omega" value="100.0"/>
+        <param name="contact_release_thr" value="80.0"/>
+
+	<param name="rolling_contacts/contact_1" value="wheel_1"/>
+	<param name="rolling_contacts/contact_2" value="wheel_2"/>
+	<param name="rolling_contacts/contact_3" value="wheel_3"/>
+	<param name="rolling_contacts/contact_4" value="wheel_4"/>
+        <param name="arm_surface_contacts/arm1_8" value="arm1_8" if="$(arg arm_contacts)"/>
+        <param name="arm_surface_contacts/arm2_8" value="arm2_8" if="$(arg arm_contacts)"/>
+
+        <param name="use_imu" value="true"/>
+
+        <param name="estimate_contacts" value="$(arg estimate_contacts)"/>
+        <param name="publish_tftopic" value="$(arg publish_tftopic)"/>
+        <param name="estimated_wrench_ref_frame"  value="pelvis"/>        <!-- leave empty for default -->
+
+        <remap from="/robot_description" to="/xbotcore/robot_description"/>
+        <remap from="/robot_description_semantic" to="/xbotcore/robot_description_semantic"/>
+    </node>
+</launch>

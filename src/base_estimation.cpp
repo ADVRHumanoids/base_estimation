@@ -241,6 +241,10 @@ void BaseEstimation::addRollingContact(std::string wheel_name,
 
     // contact estimator
     ch.contact_est = std::make_unique<ContactEstimation>(_opt.contact_release_thr, _opt.contact_attach_thr);
+    ch.contact_planned = std::make_unique<ContactPreplanned>(_nodehandle, ch.vertex_frames);    // preplanned
+
+    // push back contact info
+    contact_info.emplace_back(ft->getSensorName(), ch.vertex_frames);
 
     _contact_handler.push_back(std::move(ch));
 
@@ -478,9 +482,11 @@ void BaseEstimation::handle_contact_switch(BaseEstimation::ContactHandler& fth)
             // set pose reference for contact frames to zero height, this is to deal with contact detection
             if (!ikbe_common::isArm(fth.vertex_frames.front(), _nodehandle)) {          // for feet contacts
                 Eigen::Affine3d taskReference;
-                task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
-                taskReference.translation().z() = 0.0;
-                task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+                if (t->getType() == "Cartesian") {      // rolling task does not have set/getPoseReference
+                    task_as<Cartesian::CartesianTask>(t)->getPoseReference(taskReference);
+                    taskReference.translation().z() = 0.0;
+                    task_as<Cartesian::CartesianTask>(t)->setPoseReference(taskReference);
+                }
             }
         }
     }
