@@ -458,6 +458,15 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     _base_odom_pub.publish(odom_msg);
 
+    // publish odom frame
+    tf.child_frame_id = base_link;
+    tf.header.frame_id = "odom";
+    _base_pose_pub.publish(tf);
+
+    tf2_msgs::TFMessage tfmsg;
+    tfmsg.transforms.push_back(tf);
+    _base_tf_pub.publish(tfmsg);
+
     base_estimation::ContactWrenches wrench_msg;
     wrench_msg.header.stamp = now;
     for (auto cinfo : _est->contact_info)
