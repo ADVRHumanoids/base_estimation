@@ -11,7 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
     visualization_msgs
     std_msgs
     message_generation
-    cartesio_acceleration_support
+    #cartesio_acceleration_support
 
     ocs2_msgs
     )
@@ -87,7 +87,7 @@ install(
     )
 
 # compile cartesio rt
-add_subdirectory(cartesio)
+#add_subdirectory(cartesio)
 
 # install files
 install(
