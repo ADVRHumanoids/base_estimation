@@ -54,7 +54,7 @@ bool BaseEstimationPlugin::on_initialize()
         {
             _imu = _robot->getImu().begin()->second;
             _est->addImu(_imu);
-            jinfo("using imu '{}'", _imu->getSensorName());
+            jinfo("using imu '{}'", _imu->getName());
         }
         else
         {
@@ -232,7 +232,7 @@ void BaseEstimationPlugin::on_start()
     else if(_est->usesImu())
     {
         jinfo("resetting model from imu");
-        _model->setFloatingBaseState(_imu);
+        _model->setFloatingBaseState(*_imu);
     }
 
     _model->update();

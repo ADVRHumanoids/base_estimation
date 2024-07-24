@@ -1,7 +1,7 @@
 #ifndef VERTEX_FORCE_OPTIMIZER_H
 #define VERTEX_FORCE_OPTIMIZER_H
 
-#include <XBotInterface/ModelInterface.h>
+#include <xbot2_interface/xbot2_interface/xbotinterface2.h>
 #include <OpenSoT/solvers/BackEnd.h>
 
 namespace ikbe

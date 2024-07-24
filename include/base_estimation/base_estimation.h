@@ -8,7 +8,6 @@
 #include <cartesian_interface/problem/Postural.h>
 #include <cartesian_interface/utils/estimation/ForceEstimation.h>
 
-#include <XBotInterface/Utils.h>
 
 namespace ikbe
 {

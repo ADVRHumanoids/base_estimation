@@ -54,8 +54,8 @@ BaseEstimation::Options BaseEstimation::getOptions() const
 
 ForceTorqueSensor::Ptr BaseEstimation::CreateDummyFtSensor(std::string name)
 {
-    auto ret = std::make_shared<ForceTorqueSensor>();
-    ret->setWrench(Eigen::Vector6d::Zero(), 0.0);
+    auto ret = std::make_shared<ForceTorqueSensor>(name);
+    ret->setMeasurement(Eigen::Vector6d::Zero(), std::chrono::system_clock::now());
     return ret;
 }
 
@@ -67,7 +67,7 @@ Cartesian::CartesianInterfaceImpl::Ptr BaseEstimation::ci() const
 void BaseEstimation::addImu(ImuSensor::ConstPtr imu)
 {
     _imu = imu;
-    _imu_task = task_as<Cartesian::CartesianTask>(_ci->getTask(imu->getSensorName()));
+    _imu_task = task_as<Cartesian::CartesianTask>(_ci->getTask(imu->getName()));
     _imu_task->setActivationState(Cartesian::ActivationState::Enabled);
 
     // tbd: error check
@@ -121,7 +121,7 @@ void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames,
     });
 
     // vertex force optimizer
-    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
+    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getName(),
                                                            vertex_frames,
                                                            _model);
     ch.vertex_frames = vertex_frames;
@@ -131,7 +131,7 @@ void BaseEstimation::addSurfaceContact(std::vector<std::string> vertex_frames,
                                                          _opt.contact_attach_thr);
 
     // push back contact info
-    contact_info.emplace_back(ft->getSensorName(),
+    contact_info.emplace_back(ft->getName(),
                               vertex_frames);
 
     _contact_handler.push_back(std::move(ch));
@@ -159,13 +159,13 @@ void BaseEstimation::addRollingContact(std::string wheel_name,
 
     // vertex force optimizer's single vertex is located
     // at the ft frame
-    ch.vertex_frames = { ft->getSensorName() };
-    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getSensorName(),
+    ch.vertex_frames = { ft->getName() };
+    ch.vertex_opt = std::make_unique<VertexForceOptimizer>(ft->getName(),
                                                            ch.vertex_frames,
                                                            _model);
 
     // push back contact info
-    contact_info.emplace_back(ft->getSensorName(),
+    contact_info.emplace_back(ft->getName(),
                               ch.vertex_frames);
 
     // contact estimator
@@ -189,7 +189,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     {
         // imu orientation
         Eigen::Matrix3d nwu_R_imu;
-        _imu->getOrientation(nwu_R_imu);
+        nwu_R_imu = _imu->getOrientation().toRotationMatrix();
 
         // imu ang velocity
         Eigen::Vector3d imu_vel_local;
@@ -276,7 +276,7 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     // integrate solution
     _model->getJointPosition(_q);
     _model->getJointVelocity(_qdot);
-    _q += _opt.dt * _qdot;
+    _q = _model->sum(_q, _opt.dt * _qdot);
     _model->setJointPosition(_q);
     _model->update();  // note: update here?
 

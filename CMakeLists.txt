@@ -102,11 +102,6 @@ install(
     )
 
 
-# compile cartesio rt
-if(${COMPILE_CARTESIO_PLUGIN})
-    add_subdirectory(cartesio)
-endif()
-
 # install files
 install(
     DIRECTORY config

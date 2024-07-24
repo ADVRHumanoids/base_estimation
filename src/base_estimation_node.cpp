@@ -9,8 +9,8 @@
 #include <tf/transform_datatypes.h>
 #include <nav_msgs/Odometry.h>
 
-#include <RobotInterfaceROS/ConfigFromParam.h>
-#include <XBotInterface/RobotInterface.h>
+#include <xbot2_interface/robotinterface2.h>
+#include <xbot2_interface/ros/config_from_param.hpp>
 #include <matlogger2/matlogger2.h>
 #include <xbot2/journal/journal.h>
 #include <cartesian_interface/utils/RobotStatePublisher.h>
@@ -74,7 +74,7 @@ BaseEstimationNode::BaseEstimationNode():
     _nhpr("~")
 {
     // get config options
-    auto cfg = XBot::ConfigOptionsFromParamServer();
+    auto cfg = XBot::Utils::ConfigOptionsFromParamServer();
 
     // get robot and model
     _robot = XBot::RobotInterface::getRobot(cfg);
@@ -129,7 +129,7 @@ BaseEstimationNode::BaseEstimationNode():
         {
             auto imu = _robot->getImu().begin()->second;
             _est->addImu(imu);
-            jinfo("using imu '{}'", imu->getSensorName());
+            jinfo("using imu '{}'", imu->getName());
         }
         else
         {
@@ -215,8 +215,8 @@ BaseEstimationNode::BaseEstimationNode():
         if(z_force_override.count(ft_name))
         {
             auto dummy_ft = ikbe::BaseEstimation::CreateDummyFtSensor(ft_name);
-            dummy_ft->setForce(z_force_override.at(ft_name) * Eigen::Vector3d::UnitZ(),
-                               0.0);  // useless timestamp
+            dummy_ft->setMeasurement(z_force_override.at(ft_name) * Eigen::Vector6d::Unit(2),
+                                     XBot::wall_time::clock::now());  // useless timestamp
             jinfo("created dummy ft {} for wheel {}, fz = {}",
                   ft_name, wh_name, z_force_override.at(ft_name));
             ft = dummy_ft;
@@ -323,7 +323,7 @@ void BaseEstimationNode::start()
     if(_est->imu())
     {
         jinfo("resetting model from imu");
-        _model->setFloatingBaseState(_est->imu());
+        _model->setFloatingBaseState(*_est->imu());
     }
 
     _model->update();
