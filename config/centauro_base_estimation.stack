@@ -4,7 +4,7 @@ solver_options:
     front_end: ihqp
 
 stack:
-     - [LF, RF, LR, RR, IMU]
+     - [LF, LR, RF, RR, IMU]
 
 constraints: [Postural]
 
@@ -15,12 +15,12 @@ Postural:
     type: Postural
     lambda: 0.
     disabled_joints:
-        - VIRTUALJOINT_1
-        - VIRTUALJOINT_2
-        - VIRTUALJOINT_3
-        - VIRTUALJOINT_4
-        - VIRTUALJOINT_5
-        - VIRTUALJOINT_6
+        - reference@v0
+        - reference@v1
+        - reference@v2
+        - reference@v3
+        - reference@v4
+        - reference@v5
 
 IMU:
     type: Cartesian

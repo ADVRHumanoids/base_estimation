@@ -333,9 +333,16 @@ void BaseEstimationNode::start()
 
 bool BaseEstimationNode::run()
 {
+    // save fb pose
+    auto Tfb = _model->getFloatingBasePose();
+    auto vfb = _model->getFloatingBaseTwist();
+
     // update robot
     _robot->sense(false);
     _model->syncFrom(*_robot);
+
+    _model->setFloatingBasePose(Tfb);
+    _model->setFloatingBaseTwist(vfb);
 
     // update estimate
     Eigen::Affine3d base_pose;
