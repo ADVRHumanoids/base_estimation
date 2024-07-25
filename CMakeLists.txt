@@ -71,10 +71,8 @@ if(${xbot2_FOUND})
         TARGETS base_estimation
         DESTINATION lib
         )
-
-endif()
-
-# compile node
+        
+        # compile node
 add_executable(base_estimation_node src/base_estimation_node.cpp)
 
 target_link_libraries(base_estimation_node
@@ -87,6 +85,10 @@ install(
     TARGETS base_estimation_node
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     )
+
+endif()
+
+
 
 # compile gazebo tf publisher
 add_executable(gazebo_tf_publisher src/gazebo_tf_publisher.cpp)
