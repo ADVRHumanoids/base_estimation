@@ -1,8 +1,8 @@
 #ifndef _CONTACT_VIZ_H_
 #define _CONTACT_VIZ_H_
 
-#include <visualization_msgs/MarkerArray.h>
-#include <xbot2/ros/ros_support.h>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <xbot2/ros/ros2_support.h>
 #include <Eigen/Dense>
 
 
@@ -14,7 +14,7 @@ class contact_viz
 
 public:
 
-    contact_viz(const std::string& topic_name, XBot::RosSupport* ros);
+    contact_viz(const std::string& topic_name, XBot::Ros2Support* ros);
 
     bool publish(const std::vector<std::string>& frames,
                  const Eigen::VectorXd& normal_forces);
@@ -23,9 +23,11 @@ public:
 
 private:
 
-    visualization_msgs::MarkerArray _marker_array_msg;
+    visualization_msgs::msg::MarkerArray _marker_array_msg;
 
-    XBot::PublisherPtr<visualization_msgs::MarkerArray> _pub;
+    XBot::PublisherPtr<visualization_msgs::msg::MarkerArray> _pub;
+
+    rclcpp::Node::SharedPtr _node;
 
     XBot::Journal _j;
 };

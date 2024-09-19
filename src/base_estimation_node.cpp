@@ -1,30 +1,25 @@
-#include <ros/ros.h>
-#include <tf2_msgs/TFMessage.h>
-#include <tf2_eigen/tf2_eigen.h>
-#include <tf/transform_listener.h>
-#include <tf_conversions/tf_eigen.h>
-#include <eigen_conversions/eigen_msg.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TwistStamped.h>
-#include <tf/transform_datatypes.h>
-#include <nav_msgs/Odometry.h>
+#include <rclcpp/rclcpp.hpp>
+#include <tf2_msgs/msg/tf_message.hpp>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/twist_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 
 #include <xbot2_interface/robotinterface2.h>
-#include <xbot2_interface/ros/config_from_param.hpp>
+#include <xbot2_interface/ros2/config_from_param.hpp>
 #include <matlogger2/matlogger2.h>
 #include <xbot2/journal/journal.h>
-#include <cartesian_interface/utils/RobotStatePublisher.h>
 
 #include <base_estimation/base_estimation.h>
-#include <base_estimation/ContactsStatus.h>
+#include <base_estimation/msg/contacts_status.hpp>
 #include <base_estimation/contact_viz.h>
 
 #include "common.h"
 
 using namespace std::string_literals;
 
-class BaseEstimationNode :
-        private XBot::Journal
+class BaseEstimationNode : private XBot::Journal
 {
 
 public:
@@ -37,30 +32,29 @@ public:
 
     bool run();
 
+    rclcpp::Node::SharedPtr node();
+
 private:
 
-    ros::NodeHandle _nh;
-    ros::NodeHandle _nhpr;
+    rclcpp::Node::SharedPtr _node;
 
     XBot::RobotInterface::Ptr _robot;
     XBot::ModelInterface::Ptr _model;
     ikbe::BaseEstimation::UniquePtr _est;
-
-    std::unique_ptr<XBot::Cartesian::Utils::RobotStatePublisher> _rspub;
 
     std::string _odom_frame;
     std::string _tf_prefix;
     double _pose_lin_cov, _pose_rot_cov;
     double _vel_lin_cov, _vel_rot_cov;
 
-    ros::Publisher _base_tf_pub;
-    ros::Publisher _base_pose_pub;
-    ros::Publisher _base_twist_pub;
-    ros::Publisher _base_odom_pub;
-    ros::Publisher _base_raw_twist_pub;
-    ros::Publisher _contacts_state_pub;
+    rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr _base_tf_pub;
+    rclcpp::Publisher<geometry_msgs::msg::TransformStamped>::SharedPtr _base_pose_pub;
+    rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr _base_twist_pub;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _base_odom_pub;
+    rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr _base_raw_twist_pub;
+    rclcpp::Publisher<base_estimation::msg::ContactsStatus>::SharedPtr _contacts_state_pub;
 
-    ros::Time _last_now;
+    rclcpp::Time _last_now;
 
     void publishToROS(const Eigen::Affine3d& T,
                       const Eigen::Vector6d& v,
@@ -70,11 +64,13 @@ private:
 
 BaseEstimationNode::BaseEstimationNode():
     XBot::Journal(XBot::Journal::no_publish,
-                  "base_estimation_node"),
-    _nhpr("~")
+                  "base_estimation_node")
 {
+    //
+    _node = rclcpp::Node::make_shared("base_estimation_node");
+
     // get config options
-    auto cfg = XBot::Utils::ConfigOptionsFromParamServer();
+    auto cfg = XBot::ConfigOptionsFromParams(_node);
 
     // get robot and model
     _robot = XBot::RobotInterface::getRobot(cfg);
@@ -90,20 +86,10 @@ BaseEstimationNode::BaseEstimationNode():
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
-    // rspub
-    if(_nhpr.param<bool>("publish_tf", false))
-    {
-        _rspub = std::make_unique<XBot::Cartesian::Utils::RobotStatePublisher>(_model);
-    }
-
-    if(!_nhpr.getParam("tf_prefix", _tf_prefix))
-    {
-        _tf_prefix = "odometry";
-    }
-
     // load problem
-    std::string ik_problem_str;
-    if(!_nhpr.getParam("ik_problem", ik_problem_str))
+    std::string ik_problem_str = _node->declare_parameter<std::string>("ik_problem");
+
+    if(ik_problem_str.empty())
     {
         throw std::runtime_error("~ik_problem param missing");
     }
@@ -112,10 +98,10 @@ BaseEstimationNode::BaseEstimationNode():
 
     // estimator options
     ikbe::BaseEstimation::Options est_opt;
-    est_opt.dt = 1./_nhpr.param("rate", 100.0);
-    est_opt.log_enabled = _nhpr.param("enable_log", false);
-    est_opt.contact_attach_thr = _nhpr.param("contact_attach_thr", 40.0);
-    est_opt.contact_release_thr = _nhpr.param("contact_release_thr", 10.0);
+    est_opt.dt = 1./_node->declare_parameter("rate", 100.0);
+    est_opt.log_enabled = _node->declare_parameter("enable_log", false);
+    est_opt.contact_attach_thr = _node->declare_parameter("contact_attach_thr", 40.0);
+    est_opt.contact_release_thr = _node->declare_parameter("contact_release_thr", 10.0);
 
     // create estimator
     _est = std::make_unique<ikbe::BaseEstimation>(_model,
@@ -123,7 +109,7 @@ BaseEstimationNode::BaseEstimationNode():
                                                   est_opt);
 
     // use imu
-    if(_nhpr.param("use_imu", false))
+    if(_node->declare_parameter("use_imu", false))
     {
         if(!_robot->getImu().empty())
         {
@@ -138,53 +124,20 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // set world frame coincident to given link
-    std::string world_from_tf = _nhpr.param("world_from_tf", ""s);
+    std::string world_from_tf = _node->declare_parameter("world_from_tf", ""s);
     if(world_from_tf != "")
     {
-        tf::TransformListener tl;
+        tf2_ros::Buffer buffer(_node->get_clock());
+        tf2_ros::TransformListener tl(buffer);
 
         std::string floating_base_link;
         _model->getFloatingBaseLink(floating_base_link);
 
-        std::string err;
-        if(!tl.waitForTransform(world_from_tf,
-                                floating_base_link,
-                                ros::Time(0), ros::Duration(5.0), ros::Duration(0.01), &err))
-        {
-            ROS_ERROR("tf lookup failed: %s", err.c_str());
-            exit(1);
-        }
+        auto tf = buffer.lookupTransform(world_from_tf, floating_base_link, tf2::TimePoint(), 1s);
 
-        tf::StampedTransform tf;
-        tl.lookupTransform(world_from_tf,
-                           floating_base_link,
-                           ros::Time(0),
-                           tf);
-
-
-        Eigen::Affine3d fb_T_l;
-        tf::transformTFToEigen(tf, fb_T_l);
+        Eigen::Affine3d fb_T_l = tf2::transformToEigen(tf.transform);
 
         _model->setFloatingBasePose(fb_T_l);
-        _model->update();
-    }
-
-    // set world frame from given tf
-    std::string world_frame_link = _nhpr.param("world_frame_link", ""s);
-    if(world_frame_link != "")
-    {
-
-        Eigen::Affine3d fb_T_l;
-        std::string floating_base_link;
-        _model->getFloatingBaseLink(floating_base_link);
-        if(!_model->getPose(world_frame_link, floating_base_link, fb_T_l))
-        {
-            throw std::runtime_error("world frame link '" + world_frame_link + "' is undefined");
-        }
-
-        jinfo("using link '{}' as world frame", world_frame_link);
-
-        _model->setFloatingBasePose(fb_T_l.inverse());
         _model->update();
     }
 
@@ -192,13 +145,11 @@ BaseEstimationNode::BaseEstimationNode():
 
     // rolling contacts (ft name -> wheel name map)
     std::map<std::string, std::string> rolling_contacts;
-
-    // get it from parameters
-    _nhpr.getParam("rolling_contacts", rolling_contacts);
+    _node->declare_parameters("rolling_contacts", rolling_contacts);
 
     // z force override
     std::map<std::string, double> z_force_override;
-    _nhpr.getParam("z_force_override", z_force_override);
+    _node->declare_parameters("z_force_override", z_force_override);
 
     for(auto rc : rolling_contacts)
     {
@@ -242,7 +193,7 @@ BaseEstimationNode::BaseEstimationNode():
     std::map<std::string, std::string> surface_contacts;
 
     // get it from parameters
-    _nhpr.getParam("surface_contacts", surface_contacts);
+    _node->declare_parameters("surface_contacts", surface_contacts);
 
     for(auto sc : surface_contacts)
     {
@@ -280,29 +231,31 @@ BaseEstimationNode::BaseEstimationNode():
     }
 
     // publishers
-    _base_tf_pub = _nhpr.advertise<tf2_msgs::TFMessage>("/tf", 1);
-    _base_pose_pub = _nhpr.advertise<geometry_msgs::TransformStamped>("base_link/pose", 1);
-    _base_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/twist", 1);
-    _base_raw_twist_pub = _nhpr.advertise<geometry_msgs::TwistStamped>("base_link/raw_twist", 1);
-    _contacts_state_pub = _nhpr.advertise<base_estimation::ContactsStatus>("contacts/status", 1);
-    _base_odom_pub = _nhpr.advertise<nav_msgs::Odometry>("base_link/odom", 1);
+    _base_tf_pub = _node->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 1);
+    _base_pose_pub = _node->create_publisher<geometry_msgs::msg::TransformStamped>("base_link/pose", 1);
+    _base_twist_pub = _node->create_publisher<geometry_msgs::msg::TwistStamped>("base_link/twist", 1);
+    _base_raw_twist_pub = _node->create_publisher<geometry_msgs::msg::TwistStamped>("base_link/raw_twist", 1);
+    _contacts_state_pub = _node->create_publisher<base_estimation::msg::ContactsStatus>("contacts/status", 1);
+    _base_odom_pub = _node->create_publisher<nav_msgs::msg::Odometry>("base_link/odom", 1);
 
     // odom frame name
-    _odom_frame = _nhpr.param("odom_frame", "world"s);
+    _odom_frame = _node->declare_parameter("odom_frame", "world");
 
     // covariance
-    _pose_lin_cov = _nhpr.param("pose_lin_cov", 1.0);
-    _pose_rot_cov = _nhpr.param("pose_rot_cov", 1.0);
-    _vel_lin_cov = _nhpr.param("vel_lin_cov", 1.0);
-    _vel_rot_cov = _nhpr.param("vel_rot_cov", 1.0);
+    _pose_lin_cov = _node->declare_parameter("pose_lin_cov", 1.0);
+    _pose_rot_cov = _node->declare_parameter("pose_rot_cov", 1.0);
+    _vel_lin_cov = _node->declare_parameter("vel_lin_cov", 1.0);
+    _vel_rot_cov = _node->declare_parameter("vel_rot_cov", 1.0);
 
     // filter params
     double filter_param = 0.;
-    if(_nhpr.getParam("velocity_filter/omega", filter_param))
+
+    if(_node->get_parameter("velocity_filter/omega", filter_param))
     {
-        _est->setFilterOmega(_nhpr.param("velocity_filter/omega", 1e3));
+        _est->setFilterOmega(filter_param);
     }
-    if(_nhpr.getParam("filter_damping", filter_param))
+
+    if(_node->get_parameter("filter_damping", filter_param))
     {
         _est->setFilterDamping(filter_param);
     }
@@ -363,12 +316,17 @@ bool BaseEstimationNode::run()
     return true;
 }
 
+rclcpp::Node::SharedPtr BaseEstimationNode::node()
+{
+    return _node;
+}
+
 void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
                                       const Eigen::Vector6d& v,
                                       const Eigen::Vector6d& raw_v)
 {
     // protect against duplicated tf warning
-    auto now = ros::Time::now();
+    auto now = _node->get_clock()->now();
 
     if(now == _last_now)
     {
@@ -377,50 +335,44 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     _last_now = now;
 
-    // publish tf
-    if(_rspub)
-    {
-        _rspub->publishTransforms(now, _tf_prefix);
-    }
-
     // publish transform
-    geometry_msgs::TransformStamped tf = tf2::eigenToTransform(T);
+    geometry_msgs::msg::TransformStamped tf = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
     tf.child_frame_id = _tf_prefix + "/" + base_link;
     tf.header.frame_id = _tf_prefix + "/world";
     tf.header.stamp = now;
-    _base_pose_pub.publish(tf);
+    _base_pose_pub->publish(tf);
 
     // publish local twist
     Eigen::Vector6d v_local;
     v_local << T.linear().transpose()*v.head<3>(),
                T.linear().transpose()*v.tail<3>();
 
-    geometry_msgs::TwistStamped twist_msg;
+    geometry_msgs::msg::TwistStamped twist_msg;
     twist_msg.header.stamp = now;
     twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
 
-    tf::twistEigenToMsg(v_local, twist_msg.twist);
-    _base_twist_pub.publish(twist_msg);
+    twist_msg.twist = tf2::toMsg(v_local);
+    _base_twist_pub->publish(twist_msg);
 
     // publish local raw twist
     Eigen::Vector6d raw_v_local;
     raw_v_local << T.linear().transpose()*raw_v.head<3>(),
                    T.linear().transpose()*raw_v.tail<3>();
 
-    geometry_msgs::TwistStamped raw_twist_msg;
+    geometry_msgs::msg::TwistStamped raw_twist_msg;
     raw_twist_msg.header.stamp = now;
     raw_twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
 
-    tf::twistEigenToMsg(raw_v_local, raw_twist_msg.twist);
-    _base_raw_twist_pub.publish(raw_twist_msg);
+    raw_twist_msg.twist = tf2::toMsg(raw_v_local);
+    _base_raw_twist_pub->publish(raw_twist_msg);
 
     // publish odom
-    nav_msgs::Odometry odom_msg;
+    nav_msgs::msg::Odometry odom_msg;
     odom_msg.header = tf.header;
     odom_msg.child_frame_id = tf.child_frame_id;
-    tf::poseEigenToMsg(T, odom_msg.pose.pose);
+    odom_msg.pose.pose = tf2::toMsg(T);
     odom_msg.twist.twist = twist_msg.twist;
 
     // set covariance
@@ -432,35 +384,34 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     vel_cov.diagonal().head<3>().setConstant(_vel_lin_cov);
     vel_cov.diagonal().tail<3>().setConstant(_vel_rot_cov);
 
-    _base_odom_pub.publish(odom_msg);
+    _base_odom_pub->publish(odom_msg);
  
     // publish odom frame
     tf.child_frame_id = base_link;
     tf.header.frame_id = "odom";
-    _base_pose_pub.publish(tf);
+    _base_pose_pub->publish(tf);
 
-    tf2_msgs::TFMessage tfmsg;
+    tf2_msgs::msg::TFMessage tfmsg;
     tfmsg.transforms.push_back(tf);
-    _base_tf_pub.publish(tfmsg);
+    _base_tf_pub->publish(tfmsg);
 }
 
 int main(int argc, char **argv)
 {
     // init ros
-    ros::init(argc, argv, "base_estimation_node");
+    rclcpp::init(argc, argv);
 
     BaseEstimationNode node;
 
-    ros::Rate rate(node.getRate());
+    rclcpp::Rate rate(node.getRate(), node.node()->get_clock());
 
     node.start();
 
-    while(ros::ok())
+    while(rclcpp::ok())
     {
         node.run();
 
         rate.sleep();
-
     }
 
 }

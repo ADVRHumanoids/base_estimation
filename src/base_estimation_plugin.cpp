@@ -1,8 +1,7 @@
 #include "base_estimation_plugin.h"
 #include "common.h"
 
-#include <tf2_eigen/tf2_eigen.h>
-#include <eigen_conversions/eigen_msg.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 using namespace XBot;
 using namespace std::string_literals;
@@ -80,6 +79,7 @@ bool BaseEstimationPlugin::on_initialize()
         _model->update();
     }
     // set world frame from ground truth
+#if false
     else if(getParamOr("~world_from_gz", false))
     {
         auto lss = _robot->getDevices<Hal::LinkStateSensor>();
@@ -103,6 +103,7 @@ bool BaseEstimationPlugin::on_initialize()
                             fb_name));
         }
     }
+#endif
 
     // get contact properties
 
@@ -182,19 +183,18 @@ bool BaseEstimationPlugin::on_initialize()
     }
 
     // publishers
-    ros::NodeHandle nh(getName());
-    _ros = std::make_unique<RosSupport>(nh);
-    _base_tf_pub = _ros->advertise<tf2_msgs::TFMessage>("/tf", 1);
-    _base_pose_pub = _ros->advertise<geometry_msgs::PoseStamped>("/odometry/base_link/pose", 1);
-    _base_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/twist", 1);
-    _base_raw_twist_pub = _ros->advertise<geometry_msgs::TwistStamped>("/odometry/base_link/raw_twist", 1);
+    _ros = std::make_unique<Ros2Support>(Ros2Support::get_main_node()->create_sub_node(getName()));
+    _base_tf_pub = _ros->advertise<tf2_msgs::msg::TFMessage>("/tf", 1);
+    _base_pose_pub = _ros->advertise<geometry_msgs::msg::PoseStamped>("/odometry/base_link/pose", 1);
+    _base_twist_pub = _ros->advertise<geometry_msgs::msg::TwistStamped>("/odometry/base_link/twist", 1);
+    _base_raw_twist_pub = _ros->advertise<geometry_msgs::msg::TwistStamped>("/odometry/base_link/raw_twist", 1);
     _contact_viz = std::make_shared<ikbe::contact_viz>("/odometry/contacts/weights", _ros.get());
-    _contacts_state_pub = _ros->advertise<base_estimation::ContactsStatus>("/odometry/contacts/status",1);
+    _contacts_state_pub = _ros->advertise<base_estimation::msg::ContactsStatus>("/odometry/contacts/status",1);
 
     if(_gz)
     {
-        _base_pose_gz_pub = _ros->advertise<geometry_msgs::PoseStamped>("/gazebo/base_link/pose", 1);
-        _base_twist_gz_pub = _ros->advertise<geometry_msgs::TwistStamped>("/gazebo/base_link/twist", 1);
+        _base_pose_gz_pub  = _ros->advertise<geometry_msgs::msg::PoseStamped>("/gazebo/base_link/pose", 1);
+        _base_twist_gz_pub = _ros->advertise<geometry_msgs::msg::TwistStamped>("/gazebo/base_link/twist", 1);
     }
 
     // advertise internal model state topic
@@ -226,8 +226,8 @@ void BaseEstimationPlugin::on_start()
 
     if(_gz)
     {
-        _model->setFloatingBaseState(_gz->getPose(),
-                                     _gz->getTwist());
+        // _model->setFloatingBaseState(_gz->getPose(),
+        //                              _gz->getTwist());
     }
     else if(_est->usesImu())
     {
@@ -284,29 +284,27 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
 {
 
     // publish tf
-    tf2_msgs::TFMessage msg;
+    tf2_msgs::msg::TFMessage msg;
 
-    geometry_msgs::TransformStamped Tmsg = tf2::eigenToTransform(T);
+    geometry_msgs::msg::TransformStamped Tmsg = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
     Tmsg.child_frame_id = base_link;
     Tmsg.header.frame_id = "odometry/world";
-    ros::Time t;
     auto now = chrono::system_clock::now();
     auto now_ts = chrono::duration_chrono_to_timespec(now.time_since_epoch());
-    t.sec = now_ts.tv_sec;
-    t.nsec = now_ts.tv_nsec;
+    rclcpp::Time t(now_ts.tv_sec, now_ts.tv_nsec);
     Tmsg.header.stamp = t;
 
     msg.transforms.push_back(Tmsg);
     _base_tf_pub->publish(msg);
 
     // publish geomsg
-    geometry_msgs::PoseStamped Pmsg;
+    geometry_msgs::msg::PoseStamped Pmsg;
     convert(Tmsg, Pmsg);
     _base_pose_pub->publish(Pmsg);
 
-    geometry_msgs::TwistStamped Vmsg;
+    geometry_msgs::msg::TwistStamped Vmsg;
     Vmsg.header = Tmsg.header;
     Vmsg.twist.linear.x = v[0];
     Vmsg.twist.linear.y = v[1];
@@ -327,22 +325,22 @@ void BaseEstimationPlugin::publishToROS(const Eigen::Affine3d& T, const Eigen::V
     // publish ground truth
     if(_gz)
     {
-        tf::poseEigenToMsg(_gz->getPose(), Pmsg.pose);
-        tf::twistEigenToMsg(_gz->getTwist(), Vmsg.twist);
-        _base_pose_gz_pub->publish(Pmsg);
-        _base_twist_gz_pub->publish(Vmsg);
+        // tf::poseEigenToMsg(_gz->getPose(), Pmsg.pose);
+        // tf::twistEigenToMsg(_gz->getTwist(), Vmsg.twist);
+        // _base_pose_gz_pub->publish(Pmsg);
+        // _base_twist_gz_pub->publish(Vmsg);
     }
 
 }
 
 void BaseEstimationPlugin::publishContactStatus()
 {
-    base_estimation::ContactsStatus msg;
-    ros::Time t = ros::Time::now();
+    base_estimation::msg::ContactsStatus msg;
+    auto t = _ros->get_node()->get_clock()->now();
 
     for(const auto& cinfo : _est->contact_info)
     {
-        base_estimation::ContactStatus cs;
+        base_estimation::msg::ContactStatus cs;
 
         cs.header.stamp = t;
         cs.header.frame_id = cinfo.name;
@@ -366,8 +364,8 @@ void BaseEstimationPlugin::publishVertexWeights()
     _contact_viz->publish(vwmap);
 }
 
-void BaseEstimationPlugin::convert(const geometry_msgs::TransformStamped& T,
-                                   geometry_msgs::PoseStamped& P)
+void BaseEstimationPlugin::convert(const geometry_msgs::msg::TransformStamped& T,
+                                   geometry_msgs::msg::PoseStamped& P)
 {
     P.pose.position.x = T.transform.translation.x;
     P.pose.position.y = T.transform.translation.y;

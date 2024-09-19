@@ -6,7 +6,7 @@
 
 #include <cartesian_interface/CartesianInterfaceImpl.h>
 #include <cartesian_interface/problem/Postural.h>
-#include <cartesian_interface/utils/estimation/ForceEstimation.h>
+#include <estimation_utils/payload/force_estimation.h>
 
 
 namespace ikbe
@@ -196,7 +196,7 @@ private:
     XBot::Cartesian::CartesianTask::Ptr _imu_task;
     XBot::ImuSensor::ConstPtr _imu;
 
-    XBot::Cartesian::Utils::ForceEstimation::Ptr _fest;
+    estimation_utils::ForceEstimation::Ptr _fest;
 
     struct ContactHandler
     {

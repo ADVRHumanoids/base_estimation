@@ -86,7 +86,7 @@ ImuSensor::ConstPtr BaseEstimation::imu() const
 ForceTorqueSensor::ConstPtr BaseEstimation::createVirtualFt(std::string link_name,
                                                             std::vector<int> dofs)
 {
-    using namespace XBot::Cartesian::Utils;
+    using namespace estimation_utils;
 
     // create force estimator if needed
     if(!_fest)

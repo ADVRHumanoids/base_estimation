@@ -2,18 +2,19 @@
 
 using namespace ikbe;
 
-contact_viz::contact_viz(const std::string& topic_name, XBot::RosSupport* ros):
+contact_viz::contact_viz(const std::string& topic_name, XBot::Ros2Support* ros):
     _j(XBot::Journal::no_publish, "contact_viz")
 {
-    _pub = ros->advertise<visualization_msgs::MarkerArray>(topic_name, 1);
+    _pub = ros->advertise<visualization_msgs::msg::MarkerArray>(topic_name, 1);
+    _node = ros->get_main_node();
 }
 
 bool contact_viz::publish(const std::map<std::vector<std::string>, std::vector<double>>& map)
 {
     _marker_array_msg.markers.clear();
 
-    visualization_msgs::Marker marker;
-    ros::Time t = ros::Time::now();
+    visualization_msgs::msg::Marker marker;
+    rclcpp::Time t = _node->get_clock()->now();
 
     for(auto element : map)
     {
@@ -35,8 +36,8 @@ bool contact_viz::publish(const std::map<std::vector<std::string>, std::vector<d
             marker.header.stamp = t;
             marker.ns = frame + "_contact";
             marker.id = i;
-            marker.type = visualization_msgs::Marker::ARROW;
-            marker.action = visualization_msgs::Marker::ADD;
+            marker.type = visualization_msgs::msg::Marker::ARROW;
+            marker.action = visualization_msgs::msg::Marker::ADD;
 
             marker.pose.position.x = 0.0;
             marker.pose.position.y = 0.0;
@@ -74,8 +75,8 @@ bool contact_viz::publish(const std::vector<std::string>& frames, const Eigen::V
         return false;
     }
 
-    visualization_msgs::Marker marker;
-    ros::Time t = ros::Time::now();
+    visualization_msgs::msg::Marker marker;
+    rclcpp::Time t = _node->get_clock()->now();
     for(unsigned int i = 0; i < frames.size(); ++i)
     {
         std::string frame = frames[i];
@@ -85,8 +86,8 @@ bool contact_viz::publish(const std::vector<std::string>& frames, const Eigen::V
         marker.header.stamp = t;
         marker.ns = frame + "_contact";
         marker.id = i;
-        marker.type = visualization_msgs::Marker::ARROW;
-        marker.action = visualization_msgs::Marker::ADD;
+        marker.type = visualization_msgs::msg::Marker::ARROW;
+        marker.action = visualization_msgs::msg::Marker::ADD;
 
         marker.pose.position.x = 0.0;
         marker.pose.position.y = 0.0;
