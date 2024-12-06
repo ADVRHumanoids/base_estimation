@@ -403,7 +403,7 @@ int main(int argc, char **argv)
 
     BaseEstimationNode node;
 
-    rclcpp::Rate rate(node.getRate(), node.node()->get_clock());
+    rclcpp::Rate rate(node.getRate());
 
     node.start();
 
