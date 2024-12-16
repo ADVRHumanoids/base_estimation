@@ -66,8 +66,10 @@ BaseEstimationNode::BaseEstimationNode():
     XBot::Journal(XBot::Journal::no_publish,
                   "base_estimation_node")
 {
+
     //
     _node = rclcpp::Node::make_shared("base_estimation_node");
+    _last_now = _node->get_clock()->now();
 
     // get config options
     auto cfg = XBot::ConfigOptionsFromParams(_node);
@@ -339,8 +341,8 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     geometry_msgs::msg::TransformStamped tf = tf2::eigenToTransform(T);
     std::string base_link;
     _model->getFloatingBaseLink(base_link);
-    tf.child_frame_id = _tf_prefix + "/" + base_link;
-    tf.header.frame_id = _tf_prefix + "/world";
+    tf.child_frame_id = _tf_prefix + base_link;
+    tf.header.frame_id = _tf_prefix + "odom";
     tf.header.stamp = now;
     _base_pose_pub->publish(tf);
 
@@ -351,7 +353,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     geometry_msgs::msg::TwistStamped twist_msg;
     twist_msg.header.stamp = now;
-    twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+    twist_msg.header.frame_id = _tf_prefix + base_link;
 
     twist_msg.twist = tf2::toMsg(v_local);
     _base_twist_pub->publish(twist_msg);
@@ -363,7 +365,7 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
 
     geometry_msgs::msg::TwistStamped raw_twist_msg;
     raw_twist_msg.header.stamp = now;
-    raw_twist_msg.header.frame_id = _tf_prefix + "/" + base_link;
+    raw_twist_msg.header.frame_id = _tf_prefix + base_link;
 
     raw_twist_msg.twist = tf2::toMsg(raw_v_local);
     _base_raw_twist_pub->publish(raw_twist_msg);
@@ -403,7 +405,7 @@ int main(int argc, char **argv)
 
     BaseEstimationNode node;
 
-    rclcpp::Rate rate(node.getRate());
+    rclcpp::Rate rate(node.getRate(), node.node()->get_clock());
 
     node.start();
 
