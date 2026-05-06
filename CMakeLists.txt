@@ -18,11 +18,17 @@ find_package(rclcpp REQUIRED)
 
 find_package(std_msgs REQUIRED)
 
+find_package(visualization_msgs REQUIRED)
+
 find_package(nav_msgs REQUIRED)
 
 find_package(tf2_msgs REQUIRED)
 
+find_package(geometry_msgs REQUIRED)
+
 find_package(tf2_eigen REQUIRED)
+
+find_package(tf2_ros REQUIRED)
 
 include_directories(
     include/
@@ -68,6 +74,8 @@ if(${xbot2_FOUND})
         ${PROJECT_NAME}__rosidl_typesupport_cpp
         tf2_eigen::tf2_eigen
         tf2_msgs::tf2_msgs__rosidl_typesupport_cpp
+        geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
+        visualization_msgs::visualization_msgs__rosidl_typesupport_cpp
         )
 
     install(
@@ -85,8 +93,11 @@ target_link_libraries(base_estimation_node
     rclcpp::rclcpp
     ${PROJECT_NAME}__rosidl_typesupport_cpp
     tf2_eigen::tf2_eigen
+    tf2_ros::tf2_ros
     tf2_msgs::tf2_msgs__rosidl_typesupport_cpp
+    geometry_msgs::geometry_msgs__rosidl_typesupport_cpp
     nav_msgs::nav_msgs__rosidl_typesupport_cpp
+    visualization_msgs::visualization_msgs__rosidl_typesupport_cpp
     )
 
 install(
