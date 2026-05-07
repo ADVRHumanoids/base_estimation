@@ -42,8 +42,9 @@ private:
     XBot::ModelInterface::Ptr _model;
     ikbe::BaseEstimation::UniquePtr _est;
 
-    std::string _odom_frame;
+    std::string _odom_frame; // odom frame name
     std::string _tf_prefix;
+    bool _publish_tf; // whether to publish odom tf or not
     double _pose_lin_cov, _pose_rot_cov;
     double _vel_lin_cov, _vel_rot_cov;
 
@@ -241,7 +242,10 @@ BaseEstimationNode::BaseEstimationNode():
     _base_odom_pub = _node->create_publisher<nav_msgs::msg::Odometry>("base_link/odom", 1);
 
     // odom frame name
-    _odom_frame = _node->declare_parameter("odom_frame", "world");
+    _odom_frame = _node->declare_parameter("odom_frame", "odom");
+
+    // Publish odom tf
+    _publish_tf = _node->declare_parameter("publish_tf", true);
 
     // covariance
     _pose_lin_cov = _node->declare_parameter("pose_lin_cov", 1.0);
@@ -389,13 +393,15 @@ void BaseEstimationNode::publishToROS(const Eigen::Affine3d& T,
     _base_odom_pub->publish(odom_msg);
  
     // publish odom frame
-    tf.child_frame_id = base_link;
-    tf.header.frame_id = "odom";
-    _base_pose_pub->publish(tf);
+    if (_publish_tf) {
+        tf.child_frame_id = base_link;
+        tf.header.frame_id = _odom_frame;
+        _base_pose_pub->publish(tf);
 
-    tf2_msgs::msg::TFMessage tfmsg;
-    tfmsg.transforms.push_back(tf);
-    _base_tf_pub->publish(tfmsg);
+        tf2_msgs::msg::TFMessage tfmsg;
+        tfmsg.transforms.push_back(tf);
+        _base_tf_pub->publish(tfmsg);
+    }
 }
 
 int main(int argc, char **argv)
