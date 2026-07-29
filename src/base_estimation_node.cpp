@@ -15,6 +15,9 @@
 #include <base_estimation/msg/contacts_status.hpp>
 #include <base_estimation/contact_viz.h>
 
+#include <chrono>
+#include <thread>
+
 #include "common.h"
 
 using namespace std::string_literals;
@@ -279,9 +282,30 @@ void BaseEstimationNode::start()
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
-    if (_est->imu())
+    if(_est->imu())
     {
         const auto imu = _est->imu();
+
+        // the imu sensor object defaults to a stale/identity reading until
+        // xbotcore delivers its first real sample; capturing the yaw offset
+        // (or the initial orientation below) before that happens would
+        // silently latch a wrong reference, and the raw absolute imu yaw
+        // would leak into odom -> base_link for the rest of the run
+        int attempts = 0;
+        constexpr int max_attempts = 200;
+        while(!imu->isUpdated() && attempts < max_attempts)
+        {
+            _robot->sense(false);
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            attempts++;
+        }
+
+        if(!imu->isUpdated())
+        {
+            throw std::runtime_error("imu '" + imu->getName() + "' never received a measurement");
+        }
+
+        jinfo("resetting model from imu");
 
         std::string base_link;
         _model->getFloatingBaseLink(base_link);
@@ -292,13 +316,22 @@ void BaseEstimationNode::start()
 
         // IMU gives world_R_imu. Convert it to world_R_base.
         Eigen::Affine3d world_T_base = Eigen::Affine3d::Identity();
-        world_T_base.linear() =
+        Eigen::Matrix3d world_R_base =
             imu->getOrientation().toRotationMatrix() *
             base_T_imu.linear().transpose();
 
+        // Keep roll/pitch (gravity-referenced, safe to use absolutely) but
+        // zero the yaw: BaseEstimation::reset() (called below) captures the
+        // current imu yaw as its zero reference, so the model's initial
+        // guess must agree with yaw = 0, or the solver would see a large
+        // yaw error at the very first update() and jump to correct it.
+        double yaw0 = std::atan2(world_R_base(1, 0), world_R_base(0, 0));
+        world_T_base.linear() =
+            Eigen::AngleAxisd(-yaw0, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+            world_R_base;
+
         // No global position is observable from this IMU.
         world_T_base.translation().setZero();
-        world_T_base.linear().setZero();
 
         Eigen::Vector6d world_v_base = Eigen::Vector6d::Zero();
         _model->setFloatingBaseState(world_T_base, world_v_base);

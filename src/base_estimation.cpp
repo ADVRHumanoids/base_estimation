@@ -14,7 +14,8 @@ ikbe::BaseEstimation::BaseEstimation(ModelInterface::Ptr model,
                                      Options opt):
     _model(model),
     _opt(opt),
-    _alpha(model->getMass()*9.81)
+    _alpha(model->getMass()*9.81),
+    _imu_yaw_offset(0.0)
 {
     // create ci parameters
     auto ci_params = std::make_shared<Cartesian::Parameters>(opt.dt);
@@ -69,6 +70,11 @@ void BaseEstimation::addImu(ImuSensor::ConstPtr imu)
     _imu = imu;
     _imu_task = task_as<Cartesian::CartesianTask>(_ci->getTask(imu->getName()));
     _imu_task->setActivationState(Cartesian::ActivationState::Enabled);
+
+    // capture initial yaw so that it can be removed from
+    // subsequent measurements (see update())
+    Eigen::Matrix3d nwu_R_imu = _imu->getOrientation().toRotationMatrix();
+    _imu_yaw_offset = std::atan2(nwu_R_imu(1, 0), nwu_R_imu(0, 0));
 
     // tbd: error check
 }
@@ -187,9 +193,15 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
     // imu
     if(_imu)
     {
-        // imu orientation
-        Eigen::Matrix3d nwu_R_imu;
-        nwu_R_imu = _imu->getOrientation().toRotationMatrix();
+        // imu orientation, with the absolute yaw offset removed:
+        // roll and pitch are kept as-is (gravity-referenced, safe to use
+        // absolutely), while yaw is expressed relative to the yaw captured
+        // at reset() time. This keeps the odom frame's heading fixed at
+        // startup instead of following the imu's absolute (e.g. magnetometer
+        // -referenced) yaw, which would otherwise leak into odom -> base_link.
+        Eigen::Matrix3d nwu_R_imu =
+            Eigen::AngleAxisd(-_imu_yaw_offset, Eigen::Vector3d::UnitZ()).toRotationMatrix() *
+            _imu->getOrientation().toRotationMatrix();
 
         // imu ang velocity
         Eigen::Vector3d imu_vel_local;
@@ -296,6 +308,15 @@ bool BaseEstimation::update(Eigen::Affine3d& pose,
 
 void BaseEstimation::reset()
 {
+    if(_imu)
+    {
+        // re-capture the yaw offset so that the odom frame's heading
+        // is zeroed to the base orientation at reset time, instead of
+        // following the imu's absolute (e.g. magnetometer-referenced) yaw
+        Eigen::Matrix3d nwu_R_imu = _imu->getOrientation().toRotationMatrix();
+        _imu_yaw_offset = std::atan2(nwu_R_imu(1, 0), nwu_R_imu(0, 0));
+    }
+
     _ci->reset(0.0);
 }
 

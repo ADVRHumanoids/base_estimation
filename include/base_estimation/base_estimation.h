@@ -195,6 +195,7 @@ private:
 
     XBot::Cartesian::CartesianTask::Ptr _imu_task;
     XBot::ImuSensor::ConstPtr _imu;
+    double _imu_yaw_offset;
 
     estimation_utils::ForceEstimation::Ptr _fest;
 
