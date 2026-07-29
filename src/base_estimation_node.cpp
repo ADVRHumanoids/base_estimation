@@ -279,14 +279,32 @@ void BaseEstimationNode::start()
     _robot->sense(false);
     _model->syncFrom(*_robot);
 
-    if(_est->imu())
+    if (_est->imu())
     {
-        jinfo("resetting model from imu");
-        _model->setFloatingBaseState(*_est->imu());
+        const auto imu = _est->imu();
+
+        std::string base_link;
+        _model->getFloatingBaseLink(base_link);
+
+        // Transform from floating base to the physical IMU frame.
+        const Eigen::Affine3d base_T_imu =
+            _model->getPose(imu->getName(), base_link);
+
+        // IMU gives world_R_imu. Convert it to world_R_base.
+        Eigen::Affine3d world_T_base = Eigen::Affine3d::Identity();
+        world_T_base.linear() =
+            imu->getOrientation().toRotationMatrix() *
+            base_T_imu.linear().transpose();
+
+        // No global position is observable from this IMU.
+        world_T_base.translation().setZero();
+        world_T_base.linear().setZero();
+
+        Eigen::Vector6d world_v_base = Eigen::Vector6d::Zero();
+        _model->setFloatingBaseState(world_T_base, world_v_base);
     }
 
     _model->update();
-
     _est->reset();
 }
 
